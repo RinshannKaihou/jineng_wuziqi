@@ -2453,8 +2453,18 @@ if (typeof GomokuAI === 'undefined') {
         }
 
         // ========== 开局策略 ==========
-        // 困难模式在前期优先走开局库/中心邻域，避免不合理的偏移落子。
-        if (moveCount < 6) {
+        // 仅在局面平稳时使用开局库，避免在已有明显威胁时忽略防守。
+        const isQuietOpening =
+            moveCount < 6 &&
+            myThreats.liveThree.length === 0 &&
+            myThreats.rushFour.length === 0 &&
+            myThreats.liveFour.length === 0 &&
+            opponentThreats.liveThree.length === 0 &&
+            opponentThreats.rushFour.length === 0 &&
+            opponentThreats.liveFour.length === 0 &&
+            opponentThreats.win.length === 0;
+
+        if (isQuietOpening) {
             const openingDecision = this.handleOpeningStrategy(myThreats, opponentThreats);
             if (
                 openingDecision &&
@@ -3675,22 +3685,22 @@ if (typeof GomokuAI === 'undefined') {
                 // 评估这个位置的防守价值
                 let score = 0;
 
-                // 在这个位置落子，检查是否能阻止对方的活四
-                board[row][col] = opponent;
-                const newThreats = LineDetector.detectThreats(board, opponent, this.game, { includePotentialThree: false });
+                // 在这个位置由AI落子，检查是否能阻止对方活四
+                board[row][col] = this.player;
+                const opponentNewThreats = LineDetector.detectThreats(board, opponent, this.game, { includePotentialThree: false });
+                const myNewThreats = LineDetector.detectThreats(board, this.player, this.game, { includePotentialThree: false });
                 board[row][col] = null;
 
                 // 如果落子后对方活四数量减少，说明这个位置是有效的防守位置
-                const liveFourReduced = opponentThreats.liveFour.length - newThreats.liveFour.length;
+                const liveFourReduced = opponentThreats.liveFour.length - opponentNewThreats.liveFour.length;
                 score += liveFourReduced * 100000;
+                score += (opponentThreats.rushFour.length - opponentNewThreats.rushFour.length) * 50000;
+                score += (opponentThreats.liveThree.length - opponentNewThreats.liveThree.length) * 5000;
 
                 // 同时也要考虑是否能形成自己的威胁（进攻性防守）
-                board[row][col] = this.player;
-                const myThreats = LineDetector.detectThreats(board, this.player, this.game, { includePotentialThree: false });
-                board[row][col] = null;
-                score += myThreats.liveFour.length * 10000;
-                score += myThreats.rushFour.length * 5000;
-                score += myThreats.liveThree.length * 1000;
+                score += myNewThreats.liveFour.length * 10000;
+                score += myNewThreats.rushFour.length * 5000;
+                score += myNewThreats.liveThree.length * 1000;
 
                 // 位置价值
                 score += LineDetector.getPositionValue(row, col);
@@ -3757,21 +3767,21 @@ if (typeof GomokuAI === 'undefined') {
                 // 评估这个位置的防守价值
                 let score = 0;
 
-                // 在这个位置落子，检查是否能阻止对方的冲四
-                board[row][col] = opponent;
-                const newThreats = LineDetector.detectThreats(board, opponent, this.game, { includePotentialThree: false });
+                // 在这个位置由AI落子，检查是否能阻止对方冲四
+                board[row][col] = this.player;
+                const opponentNewThreats = LineDetector.detectThreats(board, opponent, this.game, { includePotentialThree: false });
+                const myNewThreats = LineDetector.detectThreats(board, this.player, this.game, { includePotentialThree: false });
                 board[row][col] = null;
 
                 // 如果落子后对方冲四数量减少，说明这个位置是有效的防守位置
-                const rushFourReduced = opponentThreats.rushFour.length - newThreats.rushFour.length;
+                const rushFourReduced = opponentThreats.rushFour.length - opponentNewThreats.rushFour.length;
                 score += rushFourReduced * 10000;
+                score += (opponentThreats.liveFour.length - opponentNewThreats.liveFour.length) * 50000;
+                score += (opponentThreats.liveThree.length - opponentNewThreats.liveThree.length) * 1000;
 
                 // 同时也要考虑是否能形成新的冲四（进攻性防守）
-                board[row][col] = this.player;
-                const myThreats = LineDetector.detectThreats(board, this.player, this.game, { includePotentialThree: false });
-                board[row][col] = null;
-                score += myThreats.rushFour.length * 5000;
-                score += myThreats.liveThree.length * 1000;
+                score += myNewThreats.rushFour.length * 5000;
+                score += myNewThreats.liveThree.length * 1000;
 
                 // 位置价值
                 score += LineDetector.getPositionValue(row, col);
@@ -3944,7 +3954,8 @@ if (typeof GomokuAI === 'undefined') {
         const board = this.game.board;
         const opponent = this.getOpponent();
         let bestPosition = null;
-        let bestScore = Infinity;
+        let bestThreatScore = Infinity;
+        let bestTieBreaker = -Infinity;
 
         // 检查每个威胁位置
         for (const threat of opponentThreats.liveThree) {
@@ -3960,19 +3971,25 @@ if (typeof GomokuAI === 'undefined') {
                 if (board[row][col] !== null) continue;
                 if (!this.game.canPlaceStone(row, col)) continue;
 
-                // 评估这个位置的防守价值
-                board[row][col] = opponent;
-                const newThreats = LineDetector.detectThreats(board, opponent, this.game, { includePotentialThree: false });
+                // 在该点由AI落子，评估对方剩余威胁
+                board[row][col] = this.player;
+                const opponentNewThreats = LineDetector.detectThreats(board, opponent, this.game, { includePotentialThree: false });
+                const myNewThreats = LineDetector.detectThreats(board, this.player, this.game, { includePotentialThree: false });
                 board[row][col] = null;
 
-                // 优先阻止能形成更多威胁的位置
-                let score = 0;
-                score -= newThreats.liveFour.length * 10000;
-                score -= newThreats.rushFour.length * 5000;
-                score -= newThreats.liveThree.length * 1000;
+                const opponentThreatScore = LineDetector.calculateThreatScore(opponentNewThreats);
+                const tieBreaker =
+                    myNewThreats.liveFour.length * 10000 +
+                    myNewThreats.rushFour.length * 5000 +
+                    myNewThreats.liveThree.length * 1000 +
+                    LineDetector.getPositionValue(row, col);
 
-                if (score < bestScore) {
-                    bestScore = score;
+                if (
+                    opponentThreatScore < bestThreatScore ||
+                    (opponentThreatScore === bestThreatScore && tieBreaker > bestTieBreaker)
+                ) {
+                    bestThreatScore = opponentThreatScore;
+                    bestTieBreaker = tieBreaker;
                     bestPosition = { row, col };
                 }
             }
