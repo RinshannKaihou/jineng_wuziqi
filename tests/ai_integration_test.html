@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI集成测试 - 技能五子棋</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            padding: 20px;
+        }
+        h1 { margin-bottom: 20px; }
+        .test-section {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            max-width: 600px;
+            width: 100%;
+        }
+        .test-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .test-item:last-child { border-bottom: none; }
+        .status {
+            padding: 4px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status.success { background: #27ae60; }
+        .status.error { background: #e74c3c; }
+        .status.pending { background: #f39c12; }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            background: #3498db;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        .btn:hover { background: #2980b9; transform: translateY(-2px); }
+        .log {
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            width: 100%;
+        }
+        .log-entry { margin-bottom: 4px; }
+        .log-entry.success { color: #27ae60; }
+        .log-entry.error { color: #e74c3c; }
+        .log-entry.info { color: #3498db; }
+    </style>
+</head>
+<body>
+    <h1>🧪 AI系统集成测试</h1>
+
+    <div class="test-section">
+        <h2>系统组件检查</h2>
+        <div id="component-tests"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>测试操作</h2>
+        <button class="btn" onclick="runAllTests()">🚀 运行所有测试</button>
+        <button class="btn" onclick="testOriginalGame()">🎮 测试原游戏</button>
+    </div>
+
+    <div class="test-section">
+        <h2>测试日志</h2>
+        <div class="log" id="test-log"></div>
+    </div>
+
+<script>
+// 测试日志
+function log(message, type = 'info') {
+    const logEl = document.getElementById('test-log');
+    const entry = document.createElement('div');
+    entry.className = `log-entry ${type}`;
+    entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+    logEl.appendChild(entry);
+    logEl.scrollTop = logEl.scrollHeight;
+}
+
+// 检查组件是否加载
+function checkComponent(name, obj) {
+    const exists = typeof obj !== 'undefined';
+    const status = exists ? 'success' : 'error';
+    const statusText = exists ? '✓ 已加载' : '✗ 未加载';
+
+    const testsDiv = document.getElementById('component-tests');
+    const item = document.createElement('div');
+    item.className = 'test-item';
+    item.innerHTML = `
+        <span>${name}</span>
+        <span class="status ${status}">${statusText}</span>
+    `;
+    testsDiv.appendChild(item);
+
+    log(`${name}: ${exists ? '加载成功' : '加载失败'}`, exists ? 'success' : 'error');
+    return exists;
+}
+
+// 运行所有测试
+async function runAllTests() {
+    document.getElementById('test-log').innerHTML = '';
+    log('开始测试...', 'info');
+
+    let allPassed = true;
+
+    // 测试各个组件
+    allPassed &= checkComponent('AI_CONFIG', typeof AI_CONFIG !== 'undefined');
+    allPassed &= checkComponent('LineDetector', typeof LineDetector !== 'undefined');
+    allPassed &= checkComponent('AlphaBetaSearch', typeof AlphaBetaSearch !== 'undefined');
+    allPassed &= checkComponent('OpeningBook', typeof OpeningBook !== 'undefined');
+    allPassed &= checkComponent('ThreatSpaceSearch', typeof ThreatSpaceSearch !== 'undefined');
+    allPassed &= checkComponent('GomokuAI', typeof GomokuAI !== 'undefined');
+    allPassed &= checkComponent('GomokuAIEnhanced', typeof GomokuAIEnhanced !== 'undefined');
+
+    // 测试LineDetector功能
+    if (typeof LineDetector !== 'undefined') {
+        try {
+            const testBoard = Array(15).fill(null).map(() => Array(15).fill(null));
+            testBoard[7][7] = 'black';
+            testBoard[7][8] = 'black';
+            testBoard[7][9] = 'black';
+
+            const threats = LineDetector.detectThreats(testBoard, 'black');
+            const hasThree = threats.liveThree.length > 0;
+            log(`LineDetector.detectThreats: ${hasThree ? '正常' : '异常'}`, hasThree ? 'success' : 'error');
+        } catch (e) {
+            log(`LineDetector测试失败: ${e.message}`, 'error');
+            allPassed = false;
+        }
+    }
+
+    // 测试OpeningBook功能
+    if (typeof OpeningBook !== 'undefined') {
+        try {
+            const book = new OpeningBook();
+            const move = book.query([], 'black');
+            log(`OpeningBook.query: ${move ? '正常' : '异常'}`, move ? 'success' : 'error');
+        } catch (e) {
+            log(`OpeningBook测试失败: ${e.message}`, 'error');
+            allPassed = false;
+        }
+    }
+
+    // 测试AlphaBetaSearch功能
+    if (typeof AlphaBetaSearch !== 'undefined') {
+        try {
+            const mockGame = {
+                board: Array(15).fill(null).map(() => Array(15).fill(null)),
+                checkWin: () => false
+            };
+            const search = new AlphaBetaSearch(mockGame, 'black', { searchDepth: 1 });
+            log(`AlphaBetaSearch创建: ${search ? '成功' : '失败'}`, search ? 'success' : 'error');
+        } catch (e) {
+            log(`AlphaBetaSearch测试失败: ${e.message}`, 'error');
+            allPassed = false;
+        }
+    }
+
+    const result = allPassed ? '✅ 所有测试通过!' : '❌ 部分测试失败';
+    log(result, allPassed ? 'success' : 'error');
+}
+
+// 测试原游戏
+function testOriginalGame() {
+    log('打开原游戏...', 'info');
+    window.open('gomoku.html', '_blank');
+}
+</script>
+</body>
+</html>

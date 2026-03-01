@@ -1,0 +1,2958 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三十六计 · 技能五子棋</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            color: #fff;
+        }
+        .game-container {
+            display: flex;
+            gap: 25px;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .info-panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 20px;
+            min-width: 260px;
+            max-width: 280px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        .info-panel h1 {
+            font-size: 20px;
+            margin-bottom: 15px;
+            text-align: center;
+            background: linear-gradient(90deg, #ffd700, #ff6b6b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .player-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+            padding: 12px;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+        .player-info.active {
+            background: rgba(233, 69, 96, 0.3);
+            box-shadow: 0 0 20px rgba(233, 69, 96, 0.4);
+        }
+        .player-stone {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        }
+        .player-stone.black { background: radial-gradient(circle at 30% 30%, #666, #000); }
+        .player-stone.white { background: radial-gradient(circle at 30% 30%, #fff, #ccc); }
+        .player-details { flex: 1; }
+        .player-name { font-size: 16px; font-weight: bold; display: block; }
+        .energy-bar {
+            margin-top: 6px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            height: 18px;
+            overflow: hidden;
+            position: relative;
+        }
+        .energy-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ffd700, #ffaa00);
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: bold;
+            color: #000;
+        }
+        .energy-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 11px;
+            font-weight: bold;
+            text-shadow: 0 0 3px rgba(0,0,0,0.5);
+        }
+        .game-status {
+            margin-top: 15px;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            text-align: center;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .controls {
+            margin-top: 15px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .btn {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #e94560, #ff6b6b);
+            color: white;
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(233, 69, 96, 0.4); }
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .btn-secondary:hover { background: rgba(255, 255, 255, 0.2); }
+        .board-area { display: flex; flex-direction: column; align-items: center; }
+        .board-container {
+            position: relative;
+            background: linear-gradient(135deg, #dcb35c, #c9a227);
+            padding: 18px;
+            border-radius: 10px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), inset 0 2px 5px rgba(255, 255, 255, 0.3);
+        }
+        #board {
+            display: grid;
+            grid-template-columns: repeat(15, 36px);
+            grid-template-rows: repeat(15, 36px);
+            gap: 0;
+            position: relative;
+        }
+        .cell {
+            width: 36px;
+            height: 36px;
+            position: relative;
+            cursor: pointer;
+            z-index: 2;
+        }
+        .cell::before, .cell::after {
+            content: '';
+            position: absolute;
+            background: #8b7355;
+        }
+        .cell::before { width: 100%; height: 1px; top: 50%; left: 0; }
+        .cell::after { width: 1px; height: 100%; left: 50%; top: 0; }
+        .cell[data-row="0"]::before { top: 50%; height: 50%; }
+        .cell[data-row="14"]::before { top: 0; height: 50%; }
+        .cell[data-col="0"]::after { left: 50%; width: 50%; }
+        .cell[data-col="14"]::after { left: 0; width: 50%; }
+        .cell.star-point::before, .cell.star-point::after { display: none; }
+        .star-dot {
+            position: absolute;
+            width: 7px;
+            height: 7px;
+            background: #8b7355;
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1;
+        }
+        .stone {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 3;
+            animation: placeStone 0.3s ease;
+        }
+        @keyframes placeStone {
+            0% { transform: translate(-50%, -50%) scale(0); }
+            50% { transform: translate(-50%, -50%) scale(1.1); }
+            100% { transform: translate(-50%, -50%) scale(1); }
+        }
+        .stone.black {
+            background: radial-gradient(circle at 30% 30%, #666, #000);
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5), inset -2px -2px 5px rgba(0, 0, 0, 0.5), inset 2px 2px 5px rgba(255, 255, 255, 0.2);
+        }
+        .stone.white {
+            background: radial-gradient(circle at 30% 30%, #fff, #ccc);
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3), inset -2px -2px 5px rgba(0, 0, 0, 0.1), inset 2px 2px 5px rgba(255, 255, 255, 1);
+        }
+        .stone.last-move { box-shadow: 0 0 15px #e94560, 0 0 30px #e94560, inset 0 0 10px rgba(233, 69, 96, 0.5); }
+        .stone.phantom { opacity: 0.5; border: 2px dashed #ffd700; }
+        .stone.threat-mark { animation: threatPulse 1.5s ease infinite; }
+        @keyframes threatPulse { 0%, 100% { box-shadow: 0 0 5px #ff6b6b; } 50% { box-shadow: 0 0 20px #ff6b6b, 0 0 30px #ff6b6b; } }
+
+        /* 限制落子位置高亮样式 */
+        .cell.must-place {
+            background: rgba(0, 255, 0, 0.15);
+            box-shadow: inset 0 0 20px rgba(0, 255, 0, 0.3);
+            animation: mustPlacePulse 1.5s ease infinite;
+        }
+        .cell.forbidden-place {
+            background: rgba(255, 0, 0, 0.1);
+            box-shadow: inset 0 0 15px rgba(255, 0, 0, 0.2);
+        }
+        .cell.suggested-place {
+            background: rgba(255, 215, 0, 0.15);
+            box-shadow: inset 0 0 15px rgba(255, 215, 0, 0.3);
+        }
+        @keyframes mustPlacePulse {
+            0%, 100% { background: rgba(0, 255, 0, 0.15); }
+            50% { background: rgba(0, 255, 0, 0.25); }
+        }
+        .skills-panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 20px;
+            min-width: 280px;
+            max-width: 320px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        .skills-panel h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            text-align: center;
+            color: #ffd700;
+        }
+        .skill-pool-info {
+            text-align: center;
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 15px;
+            padding: 8px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+        }
+        .skill-category {
+            font-size: 11px;
+            color: #ffd700;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .skill-item {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+            position: relative;
+            overflow: hidden;
+        }
+        .skill-item:hover:not(.cooldown):not(.insufficient) {
+            transform: translateX(3px);
+            border-color: rgba(255, 215, 0, 0.5);
+        }
+        .skill-item.active {
+            border-color: #ffd700;
+            background: rgba(255, 215, 0, 0.1);
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);
+        }
+        .skill-item.cooldown {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .skill-item.cooldown::after {
+            content: attr(data-cooldown);
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 28px;
+            font-weight: bold;
+            color: #ff6b6b;
+        }
+        .skill-item.insufficient {
+            opacity: 0.5;
+            cursor: not-allowed;
+            border-color: #ff6b6b;
+        }
+        .skill-name {
+            font-size: 14px;
+            font-weight: bold;
+            color: #ffd700;
+            margin-bottom: 4px;
+        }
+        .skill-desc {
+            font-size: 11px;
+            color: #aaa;
+            line-height: 1.3;
+        }
+        .skill-cost {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: #e94560;
+            padding: 2px 6px;
+            border-radius: 8px;
+            font-size: 10px;
+        }
+        .effect-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .effect-text {
+            position: absolute;
+            font-size: 16px;
+            font-weight: bold;
+            color: #ffd700;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+            animation: floatUp 2s ease forwards;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-40px) scale(1.3); }
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            padding: 35px;
+            border-radius: 20px;
+            text-align: center;
+            animation: modalIn 0.5s ease;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            max-width: 400px;
+        }
+        @keyframes modalIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .modal h2 {
+            font-size: 28px;
+            margin-bottom: 15px;
+            background: linear-gradient(90deg, #ffd700, #ff6b6b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .modal-skills { margin: 15px 0; font-size: 13px; color: #aaa; }
+        .skill-tag {
+            display: inline-block;
+            background: rgba(255, 215, 0, 0.2);
+            padding: 3px 8px;
+            border-radius: 10px;
+            margin: 2px;
+            font-size: 11px;
+        }
+        @media (max-width: 900px) {
+            .game-container { flex-direction: column; align-items: center; }
+            #board { grid-template-columns: repeat(15, 28px); grid-template-rows: repeat(15, 28px); }
+            .cell { width: 28px; height: 28px; }
+            .stone { width: 22px; height: 22px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="info-panel">
+            <h1>🔥 三十六计 · 五子棋</h1>
+            <div class="player-info active" id="black-player">
+                <div class="player-stone black"></div>
+                <div class="player-details">
+                    <span class="player-name">黑方</span>
+                    <div class="energy-bar">
+                        <div class="energy-fill" id="black-energy-fill" style="width: 0%"></div>
+                        <span class="energy-text" id="black-energy-text">0 / 10</span>
+                    </div>
+                </div>
+            </div>
+            <div class="player-info" id="white-player">
+                <div class="player-stone white"></div>
+                <div class="player-details">
+                    <span class="player-name">白方</span>
+                    <div class="energy-bar">
+                        <div class="energy-fill" id="white-energy-fill" style="width: 0%"></div>
+                        <span class="energy-text" id="white-energy-text">0 / 10</span>
+                    </div>
+                </div>
+            </div>
+            <div class="game-status" id="game-status">
+                黑方回合<br><small>可直接落子或使用技能</small>
+            </div>
+            <div class="controls">
+                <button class="btn btn-secondary" onclick="game.toggleAIMode()" id="ai-mode-btn">🤖 AI对战: 关闭</button>
+                <button class="btn btn-secondary" onclick="game.cycleAIDifficulty()" id="ai-difficulty-btn">🎮 难度: 简单</button>
+                <button class="btn btn-secondary" onclick="game.undo()">↩️ 悔棋</button>
+                <button class="btn btn-primary" onclick="game.restart()">🔄 新局</button>
+                <button class="btn btn-secondary" onclick="game.rematch()">🎯 重玩</button>
+                <button class="btn btn-secondary" id="test-mode-btn" onclick="game.toggleTestMode()">🧪 开启测试模式</button>
+            </div>
+        </div>
+
+        <div class="board-area">
+            <div class="board-container">
+                <div id="board"></div>
+                <div class="effect-layer" id="effect-layer"></div>
+            </div>
+        </div>
+
+        <div class="skills-panel">
+            <h2 id="skills-panel-title">✨ 本局技能池</h2>
+            <div class="skill-pool-info" id="skill-pool-info">
+                随机选取 6-10 个技能 | 双方共享CD
+            </div>
+            <div id="skills-list"></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modal">
+        <div class="modal">
+            <h2 id="modal-title">🎉 游戏结束</h2>
+            <p id="modal-message"></p>
+            <div class="modal-skills" id="modal-skills"></div>
+            <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: center;">
+                <button class="btn btn-primary" onclick="game.rematch()">🎯 重玩本组</button>
+                <button class="btn btn-secondary" onclick="game.restart()">🔄 新局</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+// ==================== 技能系统基础 ====================
+const SkillEffectType = { SINGLE_STONE: 'single', AREA: 'area', GLOBAL: 'global', LINE: 'line' };
+const SkillTargetType = { NONE: 'none', CELL: 'cell', STONE: 'stone', LINE: 'line' };
+
+class Skill {
+    constructor(config) {
+        this.id = config.id;
+        this.name = config.name;
+        this.description = config.description;
+        this.icon = config.icon;
+        this.cost = config.cost;
+        this.cooldown = config.cooldown;
+        this.maxCooldown = config.cooldown;
+        this.category = config.category;
+        this.targetType = config.targetType || SkillTargetType.CELL;
+        this.range = config.range || 0;
+        this.currentCooldown = 0;
+    }
+    canUse(game, player) {
+        return this.currentCooldown === 0 && game.getPlayerEnergy(player) >= this.cost;
+    }
+    use(game, target, player) { throw new Error('Must implement'); }
+    getArea(centerRow, centerCol) {
+        const area = [];
+        for (let r = centerRow - this.range; r <= centerRow + this.range; r++) {
+            for (let c = centerCol - this.range; c <= centerCol + this.range; c++) {
+                if (r >= 0 && r < 15 && c >= 0 && c < 15) area.push({row: r, col: c});
+            }
+        }
+        return area;
+    }
+    startCooldown() { this.currentCooldown = this.maxCooldown; }
+    tickCooldown() { if (this.currentCooldown > 0) this.currentCooldown--; }
+    resetCooldown() { this.currentCooldown = 0; }
+}
+
+// ==================== Legacy 技能（保留但不用）====================
+const LegacySkills = {
+    ThunderStrike: class extends Skill {
+        constructor() { super({id: 'thunder', name: '雷霆一击( Legacy )', icon: '⚡', cost: 3, cooldown: 2, category: 'Legacy', description: '摧毁目标及周围1格内所有棋子', targetType: SkillTargetType.CELL, range: 1}); }
+        use(game, target, player) {
+            let destroyed = 0;
+            this.getArea(target.row, target.col).forEach(({row, col}) => {
+                if (game.board[row][col]) { game.board[row][col] = null; destroyed++; }
+            });
+            if (destroyed > 0) { game.showEffect(target.row, target.col, '⚡ 雷霆一击!'); game.renderBoard(); return true; }
+            return false;
+        }
+    },
+    IceSeal: class extends Skill {
+        constructor() { super({id: 'ice', name: '冰封封印( Legacy )', icon: '❄️', cost: 2, cooldown: 1, category: 'Legacy', description: '冻结格子2回合，期间无法落子', targetType: SkillTargetType.CELL}); }
+        use(game, target, player) {
+            if (game.board[target.row][target.col]) return false;
+            game.frozenCells.set(`${target.row},${target.col}`, 2);
+            game.showEffect(target.row, target.col, '❄️ 冰封!');
+            const cell = game.getCellElement(target.row, target.col);
+            if (cell) cell.style.background = 'rgba(100, 200, 255, 0.3)';
+            return true;
+        }
+    },
+    Chameleon: class extends Skill {
+        constructor() { super({id: 'chameleon', name: '变色龙( Legacy )', icon: '🦎', cost: 4, cooldown: 2, category: 'Legacy', description: '将目标棋子变为己方颜色', targetType: SkillTargetType.STONE}); }
+        use(game, target, player) {
+            const stone = game.board[target.row][target.col];
+            if (!stone || stone === player) return false;
+            game.board[target.row][target.col] = player;
+            game.showEffect(target.row, target.col, '🦎 变色!');
+            game.renderBoard();
+            return true;
+        }
+    },
+    TimeRewind: class extends Skill {
+        constructor() { super({id: 'rewind', name: '时间回溯( Legacy )', icon: '⏰', cost: 5, cooldown: 3, category: 'Legacy', description: '回退到上一个回合', targetType: SkillTargetType.NONE}); }
+        canUse(game, player) { return super.canUse(game, player) && game.moveHistory.length >= 2; }
+        use(game, target, player) {
+            game.undo(); game.undo();
+            game.showEffect(7, 7, '⏰ 时间回溯!');
+            return true;
+        }
+    },
+    DoubleStrike: class extends Skill {
+        constructor() { super({id: 'double', name: '双重打击( Legacy )', icon: '👥', cost: 3, cooldown: 2, category: 'Legacy', description: '本回合可连续下两颗棋子', targetType: SkillTargetType.NONE}); }
+        use(game, target, player) {
+            game.extraMoveOwner = player;
+            game.extraMoves = 1;
+            game.showEffect(7, 7, '👥 双重打击!');
+            return true;
+        }
+    },
+    DivineShield: class extends Skill {
+        constructor() { super({id: 'shield', name: '神圣护盾( Legacy )', icon: '🛡️', cost: 2, cooldown: 2, category: 'Legacy', description: '保护己方棋子免疫一次技能', targetType: SkillTargetType.STONE}); }
+        use(game, target, player) {
+            if (game.board[target.row][target.col] !== player) return false;
+            game.protectedStones.add(`${target.row},${target.col}`);
+            game.showEffect(target.row, target.col, '🛡️ 神圣护盾!');
+            game.renderBoard();
+            return true;
+        }
+    }
+};
+
+// ==================== 三十六计技能 ====================
+// 
+// 技能编辑指南：
+// 1. 查看 SKILL_README.md 了解完整技能规范
+// 2. 查看 SKILL_TEMPLATE.js 获取代码模板
+// 3. 修改下方技能类实现新的技能效果
+// 4. 在 SkillManager.registerAllSkills() 中注册新技能
+//
+// 注意：此区域定义所有36计技能，每个技能是一个独立的类
+
+// 胜战计（压制型）
+class S1_BlindCrossSea extends Skill {
+    constructor() { super({id: 's1', name: '瞒天过海', icon: '🌊', cost: 2, cooldown: 3, category: '胜战计', description: '移除己方一颗棋子，在任意空位重新落子', targetType: SkillTargetType.STONE}); }
+    use(game, target, player) {
+        if (game.board[target.row][target.col] !== player) return false;
+        game.board[target.row][target.col] = null;
+        game.showEffect(target.row, target.col, '🌊 移除!');
+        game.pendingSkillEffect = { skill: this, player: player, type: 'placeAnywhere' };
+        game.updateStatus('瞒天过海: 请选择新位置落子');
+        game.renderBoard();
+        return true;
+    }
+}
+
+class S2_SurroundWeiSaveZhao extends Skill {
+    constructor() { super({id: 's2', name: '围魏救赵', icon: '🎯', cost: 3, cooldown: 4, category: '胜战计', description: '标记对方一条三连线，强制其下回合必须在该线防守', targetType: SkillTargetType.STONE}); }
+    use(game, target, player) {
+        const opponent = player === 'black' ? 'white' : 'black';
+        // 找到对方的三连线的空位
+        const defendPoints = game.findThreeLineEmpty(opponent);
+        if (defendPoints.length === 0) { game.showEffect(target.row, target.col, '❌ 无三连线可标记'); return false; }
+        game.forcedDefense = { player: opponent, positions: defendPoints, turns: 2 };
+        game.showEffect(target.row, target.col, '🎯 围魏救赵! 对方必须防守');
+        return true;
+    }
+}
+
+class S3_BorrowKnifeKill extends Skill {
+    constructor() { super({id: 's3', name: '借刀杀人', icon: '🔪', cost: 4, cooldown: 5, category: '胜战计', description: '选择对方一颗棋子，与己方一颗棋子交换位置', targetType: SkillTargetType.STONE}); }
+    canUse(game, player) { return super.canUse(game, player) && game.moveHistory.length >= 2; }
+    use(game, target, player) {
+        const stone = game.board[target.row][target.col];
+        if (!stone || stone === player) return false;
+        // 保存选择的对方棋子，进入pending状态选择己方棋子
+        game.pendingSkillEffect = { skill: this, player: player, type: 'swapWithOpponent', opponentStone: {row: target.row, col: target.col} };
+        game.showEffect(target.row, target.col, '🔪 选择己方棋子交换');
+        return true;
+    }
+}
+
+class S4_WaitForWork extends Skill {
+    constructor() { super({id: 's4', name: '以逸待劳', icon: '☯️', cost: 1, cooldown: 2, category: '胜战计', description: '跳过本回合，获得3点额外能量', targetType: SkillTargetType.NONE}); }
+    use(game, target, player) {
+        game.addEnergy(player, 3);
+        game.showEffect(7, 7, '☯️ 以逸待劳! +3能量，跳过回合');
+        // 直接切换回合，不等待落子
+        game.switchPlayer();
+        return true;
+    }
+}
+
+class S5_LootBurning extends Skill {
+    constructor() { super({id: 's5', name: '趁火打劫', icon: '🔥', cost: 3, cooldown: 4, category: '胜战计', description: '从对方的四连中删除一个棋子', targetType: SkillTargetType.NONE}); }
+    use(game, target, player) {
+        const opponent = player === 'black' ? 'white' : 'black';
+        // 找到对方的四连线并删除其中一个棋子
+        const fourLineStone = game.findFourLineStone(opponent);
+        if (!fourLineStone) {
+            game.showEffect(7, 7, '❌ 对方无四连可破');
+            return false;
+        }
+        game.board[fourLineStone.row][fourLineStone.col] = null;
+        game.showEffect(fourLineStone.row, fourLineStone.col, '🔥 趁火打劫! 破坏四连');
+        game.renderBoard();
+        return true;
+    }
+}
+
+class S6_SoundEastHitWest extends Skill {
+    constructor() { super({id: 's6', name: '声东击西', icon: '🎭', cost: 2, cooldown: 3, category: '胜战计', description: '落两颗虚像子，下一自己回合开始时随机消失一颗（本回合无法获胜）', targetType: SkillTargetType.NONE}); }
+    use(game, target, player) {
+        // 设置状态：可以落两颗虚像子，但不能获胜
+        game.soundEastState = { player: player, placed: 0, positions: [], canWin: false };
+        game.showEffect(7, 7, '🎭 声东击西! 请落第一颗虚像子（本回合无法获胜）');
+        game.updateStatus('声东击西: 请落两颗虚像子（本回合无法获胜）');
+        return true;
+    }
+}
+
+// 敌战计（对抗型）
+class E1_CreateFromNothing extends Skill {
+    constructor() { super({id: 'e1', name: '无中生有', icon: '✨', cost: 5, cooldown: 6, category: '敌战计', description: '在空白区域放置一颗"幻想子"(3回合后消失,计入连珠)', targetType: SkillTargetType.CELL}); }
+    use(game, target, player) {
+        if (game.board[target.row][target.col]) return false;
+        game.phantomStones.push({ row: target.row, col: target.col, player: player, turns: 3 });
+        game.showEffect(target.row, target.col, '✨ 无中生有!');
+        game.renderBoard();
+        return true;
+    }
+}
+
+class E2_HideInDark extends Skill {
+    constructor() { super({id: 'e2', name: '暗度陈仓', icon: '🌑', cost: 3, cooldown: 4, category: '敌战计', description: '将己方一颗棋子显示为对方的棋子（但实际计算时仍按照己方计算）', targetType: SkillTargetType.STONE}); }
+    use(game, target, player) {
+        // 必须是己方棋子
+        if (game.board[target.row][target.col] !== player) {
+            game.showEffect(target.row, target.col, '❌ 必须选择己方棋子');
+            return false;
+        }
+        // 添加伪装效果：显示为对方颜色，但计算时仍为己方
+        game.disguisedStones = game.disguisedStones || [];
+        game.disguisedStones.push({
+            row: target.row, 
+            col: target.col, 
+            actualPlayer: player,
+            displayPlayer: player === 'black' ? 'white' : 'black',
+            turns: 3
+        });
+        game.showEffect(target.row, target.col, '🌑 暗度陈仓! 已伪装');
+        game.renderBoard();
+        return true;
+    }
+}
+
+class E3_WatchFireAcross extends Skill {
+    constructor() { super({id: 'e3', name: '隔岸观火', icon: '🔥', cost: 2, cooldown: 3, category: '敌战计', description: '封印对手下一回合的技能使用权', targetType: SkillTargetType.NONE}); }
+    use(game, target, player) {
+        const opponent = player === 'black' ? 'white' : 'black';
+        // 封印对手下一回合技能
+        game.skillSeal = { player: opponent, nextTurnOnly: true, turns: 1, sourceSkill: '隔岸观火' };
+        game.showEffect(7, 7, '🔥 隔岸观火! 封印技能');
+        return true;
+    }
+}
+
+class E4_HideKnifeInSmile extends Skill {
+    constructor() { super({id: 'e4', name: '笑里藏刀', icon: '😊', cost: 4, cooldown: 5, category: '敌战计', description: '在目标位置落子，并将相邻的一颗对方棋子转化为己方', targetType: SkillTargetType.CELL}); }
+    use(game, target, player) {
+        if (!game.canPlaceStone(target.row, target.col)) return false;
+        // 执行落子
+        game.board[target.row][target.col] = player;
+        game.moveHistory.push({ row: target.row, col: target.col, player: player });
+        // 转化相邻对方棋子
+        const dirs = [[0,1],[0,-1],[1,0],[-1,0],[1,1],[-1,-1],[1,-1],[-1,1]];
+        const opponent = player === 'black' ? 'white' : 'black';
+        let converted = false;
+        for (let [dr, dc] of dirs) {
+            const nr = target.row + dr, nc = target.col + dc;
+            if (nr >= 0 && nr < 15 && nc >= 0 && nc < 15 && game.board[nr][nc] === opponent) {
+                game.board[nr][nc] = player;
+                converted = true;
+                break;
+            }
+        }
+        game.showEffect(target.row, target.col, converted ? '😊 笑里藏刀!' : '😊 落子');
+        game.renderBoard();
+        // 检查胜利
+        if (game.checkWin(target.row, target.col)) {
+            game.gameOver = true;
+            game.showWinModal();
+            return true;
+        }
+        // 技能包含落子，使用后切换回合
+        game.switchPlayer();
+        return true;
+    }
+}
+
+class E5_TreeOnPeach extends Skill {
+    constructor() { super({id: 'e5', name: '李代桃僵', icon: '🍑', cost: 3, cooldown: 4, category: '敌战计', description: '牺牲己方一颗棋子，然后选择对方四连中的一颗棋子删除', targetType: SkillTargetType.STONE}); }
+    canUse(game, player) {
+        // 检查对方是否有四连
+        const opponent = game.getOpponent(player);
+        const hasFourLine = game.hasFourLine(opponent);
+        if (!hasFourLine) return false;
+        return super.canUse(game, player);
+    }
+    use(game, target, player) {
+        if (game.board[target.row][target.col] !== player) { game.showEffect(target.row, target.col, '❌ 只能选择己方棋子'); return false; }
+        // 牺牲己方棋子
+        game.board[target.row][target.col] = null;
+        game.showEffect(target.row, target.col, '🍑 牺牲!');
+        game.renderBoard();
+        // 进入pending状态，等待选择对方四连中的棋子删除
+        game.pendingSkillEffect = { skill: this, player: player, type: 'blockFourLine', sacrificed: {row: target.row, col: target.col} };
+        game.showEffect(7, 7, '🍑 请选择对方四连中的一颗棋子删除');
+        return true;
+    }
+}
+
+class E6_CatchSheep extends Skill {
+    constructor() { super({id: 'e6', name: '顺手牵羊', icon: '🐑', cost: 2, cooldown: 2, category: '敌战计', description: '对方落子后，将其向任意方向推移一格', targetType: SkillTargetType.STONE}); }
+    use(game, target, player) {
+        const stone = game.board[target.row][target.col];
+        if (!stone || stone === player) return false;
+        game.pendingSkillEffect = { skill: this, player: player, type: 'pushStone', from: {row: target.row, col: target.col} };
+        game.showEffect(target.row, target.col, '🐑 选择推移方向');
+        return true;
+    }
+}
+
+// 攻战计（进攻型）
+class A1_StartleSnake extends Skill {
+    constructor() { super({id: 'a1', name: '打草惊蛇', icon: '🐍', cost: 1, cooldown: 1, category: '攻战计', description: '额外获得3点能量，但下回合无法使用技能', targetType: SkillTargetType.NONE}); }
+    use(game, target, player) {
+        game.addEnergy(player, 3);
+        // 封印自己下一回合技能，使用 nextTurnOnly 标记
+        game.skillSeal = { player: player, nextTurnOnly: true, turns: 1, sourceSkill: '打草惊蛇' };
+        game.showEffect(7, 7, '🐍 打草惊蛇! +3能量，但下回合封技能');
+        return true;
+    }
+}
+
+class A2_BorrowSoulReturn extends Skill {
+    constructor() { super({id: 'a2', name: '借尸还魂', icon: '👻', cost: 4, cooldown: 5, category: '攻战计', description: '复制对方上一次使用的技能效果', targetType: SkillTargetType.NONE}); }
+    canUse(game, player) { return super.canUse(game, player) && game.lastUsedSkill && game.lastUsedSkill[game.getOpponent(player)]; }
+    use(game, target, player) {
+        const opponent = game.getOpponent(player);
+        const lastSkillName = game.lastUsedSkill[opponent];
+        game.showEffect(7, 7, `👻 借尸还魂! 复制:${lastSkillName}`);
+        return true;
+    }
+}
+
+class A3_LureTigerLeave extends Skill {
+    constructor() { super({id: 'a3', name: '调虎离山', icon: '🐯', cost: 5, cooldown: 4, category: '攻战计', description: '将对手的一颗棋子挪到离当前棋型最远的区域', targetType: SkillTargetType.STONE}); }
+    use(game, target, player) {
+        const opponent = game.getOpponent(player);
+        // 必须是对方棋子
+        if (game.board[target.row][target.col] !== opponent) {
+            game.showEffect(target.row, target.col, '❌ 必须选择对方棋子');
+            return false;
+        }
+        // 保存原位置
+        const fromRow = target.row, fromCol = target.col;
+        // 找到最远空位
+        const farPos = game.findFarthestEmpty(player);
+        if (!farPos) { game.showEffect(7, 7, '❌ 无空位可移动'); return false; }
+        // 移动棋子
+        game.board[farPos.row][farPos.col] = opponent;
+        game.board[fromRow][fromCol] = null;
+        game.showEffect(fromRow, fromCol, '🐯 调虎离山!');
+        game.showEffect(farPos.row, farPos.col, '🐯 挪至远位');
+        game.renderBoard();
+        return true;
+    }
+}
+
+class A4_WantCatchLetGo extends Skill {
+    constructor() { super({id: 'a4', name: '欲擒故纵', icon: '🎣', cost: 2, cooldown: 3, category: '攻战计', description: '放弃本回合，对手下回合必须落在你指定的3个位置之一', targetType: SkillTargetType.CELL, range: 1}); }
+    use(game, target, player) {
+        const area = this.getArea(target.row, target.col).filter(({row, col}) => !game.board[row][col]);
+        if (area.length < 3) { game.showEffect(target.row, target.col, '❌ 空位不足'); return false; }
+        const opponent = game.getOpponent(player);
+        game.forcedPlacement = { player: opponent, type: 'restricted', positions: area.slice(0, 3), turns: 2 };
+        game.skipTurn = true;
+        game.showEffect(target.row, target.col, '🎣 欲擒故纵!');
+        return true;
+    }
+}
+
+class A5_ThrowBrickAttract extends Skill {
+    constructor() { super({id: 'a5', name: '抛砖引玉', icon: '🧱', cost: 2, cooldown: 3, category: '攻战计', description: '对手下回合必须在你这回合落子的旁边进行落子', targetType: SkillTargetType.CELL}); }
+    use(game, target, player) {
+        if (!game.canPlaceStone(target.row, target.col)) return false;
+        // 先落子
+        game.board[target.row][target.col] = player;
+        game.moveHistory.push({ row: target.row, col: target.col, player: player });
+        // 设置强制效果：对手必须在旁边落子
+        const opponent = game.getOpponent(player);
+        const dirs = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+        const neighborPositions = [];
+        for (let [dr, dc] of dirs) {
+            const nr = target.row + dr, nc = target.col + dc;
+            if (nr >= 0 && nr < 15 && nc >= 0 && nc < 15 && !game.board[nr][nc]) {
+                neighborPositions.push({row: nr, col: nc});
+            }
+        }
+        if (neighborPositions.length === 0) {
+            // 旁边没空位，强制效果无效
+            game.showEffect(target.row, target.col, '🧱 落子（旁边无空位，强制效果无效）');
+        } else {
+            game.forcedDefense = { player: opponent, positions: neighborPositions, turns: 2, type: 'neighbor' };
+            game.showEffect(target.row, target.col, '🧱 抛砖引玉! 对手必须在旁边落子');
+        }
+        game.renderBoard();
+        // 检查胜利
+        if (game.checkWin(target.row, target.col)) {
+            game.gameOver = true;
+            game.showWinModal();
+            return true;
+        }
+        game.switchPlayer();
+        return true;
+    }
+}
+
+class A6_CatchThiefCatchKing extends Skill {
+    constructor() { super({id: 'a6', name: '擒贼擒王', icon: '👑', cost: 6, cooldown: 7, category: '攻战计', description: '移除对方棋盘上最关键的一颗子(最多连线中的子)', targetType: SkillTargetType.NONE}); }
+    use(game, target, player) {
+        const opponent = game.getOpponent(player);
+        const keyStone = game.findKeyStone(opponent);
+        if (!keyStone) { game.showEffect(7, 7, '❌ 无关键子可擒'); return false; }
+        game.board[keyStone.row][keyStone.col] = null;
+        game.showEffect(keyStone.row, keyStone.col, '👑 擒贼擒王!');
+        game.renderBoard();
+        return true;
+    }
+}
+
+// 混战计（乱局型）
+class C1_RemoveFirewood extends Skill {
+    constructor() { super({id: 'c1', name: '釜底抽薪', icon: '🍲', cost: 4, cooldown: 5, category: '混战计', description: '移除对方一颗没有参与任何连线的棋子，本回合无法获胜', targetType: SkillTargetType.STONE}); }
+    use(game, target, player) {
+        const opponent = game.getOpponent(player);
+        if (game.board[target.row][target.col] !== opponent) { game.showEffect(target.row, target.col, '❌ 只能选择对方棋子'); return false; }
+        // 检查是否参与连线
+        const isConnected = game.checkLineCount(target.row, target.col, opponent) > 0;
+        if (isConnected) { game.showEffect(target.row, target.col, '❌ 只能移除孤立子'); return false; }
+        game.board[target.row][target.col] = null;
+        game.noWinThisTurn = true;
+        game.showEffect(target.row, target.col, '🍲 釜底抽薪!');
+        game.renderBoard();
+        return true;
+    }
+}
+
+class C2_MuddyWaterFish extends Skill {
+    constructor() { super({id: 'c2', name: '浑水摸鱼', icon: '🐟', cost: 3, cooldown: 4, category: '混战计', description: '将己方一颗棋子移动到相邻的任意空位', targetType: SkillTargetType.STONE}); }
+    use(game, target, player) {
+        if (game.board[target.row][target.col] !== player) { game.showEffect(target.row, target.col, '❌ 只能选择己方棋子'); return false; }
+        game.pendingSkillEffect = { skill: this, player: player, type: 'moveStone', origin: {row: target.row, col: target.col} };
+        game.showEffect(target.row, target.col, '🐟 选择移动位置');
+        return true;
+    }
+}
+
+class C3_GoldenCicadaShell extends Skill {
+    constructor() { super({id: 'c3', name: '金蝉脱壳', icon: '🦗', cost: 5, cooldown: 5, category: '混战计', description: '将己方一颗棋子移动到棋盘任意空位，但下回合能量-2', targetType: SkillTargetType.STONE}); }
+    use(game, target, player) {
+        if (game.board[target.row][target.col] !== player) { game.showEffect(target.row, target.col, '❌ 只能选择己方棋子'); return false; }
+        game.pendingSkillEffect = { skill: this, player: player, type: 'teleportStone', origin: {row: target.row, col: target.col} };
+        game.showEffect(target.row, target.col, '🦗 选择目标位置');
+        return true;
+    }
+}
+
+class C4_CloseDoorCatchThief extends Skill {
+    constructor() { super({id: 'c4', name: '关门捉贼', icon: '🚪', cost: 2, cooldown: 3, category: '混战计', description: '指定一个3×3区域，对手下一回合必须在此区域内落子（若区域满则无法使用）', targetType: SkillTargetType.CELL, range: 1}); }
+    use(game, target, player) {
+        const area = this.getArea(target.row, target.col).filter(p => p.row >= 0 && p.row < 15 && p.col >= 0 && p.col < 15);
+        // 检查区域是否已满
+        const hasEmpty = area.some(p => !game.board[p.row][p.col]);
+        if (!hasEmpty) { game.showEffect(target.row, target.col, '❌ 区域已满'); return false; }
+        const opponent = game.getOpponent(player);
+        game.restrictedArea = { player: opponent, area: area, turns: 0, maxTurns: 1 }; // maxTurns=1表示持续到对手回合结束
+        game.showEffect(target.row, target.col, '🚪 关门捉贼!');
+        return true;
+    }
+}
+
+class C5_BefriendDistant extends Skill {
+    constructor() { super({id: 'c5', name: '远交近攻', icon: '🌍', cost: 3, cooldown: 4, category: '混战计', description: '在距离己方所有棋子最远的空位落子，然后选择删除对方一颗棋子', targetType: SkillTargetType.NONE}); }
+    use(game, target, player) {
+        const farPos = game.findFarthestEmptyFromAll(player);
+        if (!farPos) { game.showEffect(7, 7, '❌ 无空位'); return false; }
+        const opponent = game.getOpponent(player);
+        // 查找对方棋子
+        const opponentStones = [];
+        for (let r = 0; r < 15; r++) {
+            for (let c = 0; c < 15; c++) {
+                if (game.board[r][c] === opponent) opponentStones.push({row: r, col: c});
+            }
+        }
+        if (opponentStones.length === 0) { game.showEffect(7, 7, '❌ 无对方棋子可移'); return false; }
+        // 先落子
+        game.board[farPos.row][farPos.col] = player;
+        game.moveHistory.push({ row: farPos.row, col: farPos.col, player: player });
+        game.showEffect(farPos.row, farPos.col, '🌍 远交近攻! 落子');
+        game.renderBoard();
+        // 检查胜利
+        if (game.checkWin(farPos.row, farPos.col)) {
+            game.gameOver = true;
+            game.showWinModal();
+            return true;
+        }
+        // 进入pending状态，等待选择要删除的对方棋子
+        game.pendingSkillEffect = { skill: this, player: player, type: 'removeOpponentStone', opponentStones: opponentStones };
+        game.showEffect(7, 7, '🌍 请选择要删除的对方棋子');
+        return true;
+    }
+}
+
+class C6_FakePathAttack extends Skill {
+    constructor() { super({id: 'c6', name: '假途伐虢', icon: '🛤️', cost: 3, cooldown: 4, category: '混战计', description: '在对方两颗相邻棋子之间落子，若成功阻断其连线，获得2点能量', targetType: SkillTargetType.CELL}); }
+    use(game, target, player) {
+        if (!game.canPlaceStone(target.row, target.col)) return false;
+        const opponent = game.getOpponent(player);
+        // 检查是否在对方两颗相邻棋子之间
+        const dirs = [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
+        let isBetween = false;
+        for (let [dr, dc] of dirs) {
+            const r1 = target.row + dr, c1 = target.col + dc;
+            const r2 = target.row - dr, c2 = target.col - dc;
+            if (r1 >= 0 && r1 < 15 && c1 >= 0 && c1 < 15 && r2 >= 0 && r2 < 15 && c2 >= 0 && c2 < 15) {
+                if (game.board[r1][c1] === opponent && game.board[r2][c2] === opponent) {
+                    isBetween = true;
+                    break;
+                }
+            }
+        }
+        if (!isBetween) { game.showEffect(target.row, target.col, '❌ 必须在对方相邻两子之间'); return false; }
+        // 落子
+        game.board[target.row][target.col] = player;
+        game.moveHistory.push({ row: target.row, col: target.col, player: player });
+        // 检查是否阻断连线
+        const blocked = game.checkBlockLine(target.row, target.col, opponent);
+        if (blocked) {
+            game.addEnergy(player, 2);
+            game.showEffect(target.row, target.col, '🛤️ 假途伐虢! +2能量');
+        } else {
+            game.showEffect(target.row, target.col, '🛤️ 落子');
+        }
+        game.renderBoard();
+        if (game.checkWin(target.row, target.col)) {
+            game.gameOver = true;
+            game.showWinModal();
+            return true;
+        }
+        game.switchPlayer();
+        return true;
+    }
+}
+
+// 并战计（转化型）
+class M1_StealBeamChangePost extends Skill {
+    constructor() { super({id: 'm1', name: '偷梁换柱', icon: '📦', cost: 5, cooldown: 6, category: '并战计', description: '选择一颗对方参与连线较多的棋子，将其转化为己方棋子', targetType: SkillTargetType.STONE}); }
+    use(game, target, player) {
+        const opponent = game.getOpponent(player);
+        if (game.board[target.row][target.col] !== opponent) { game.showEffect(target.row, target.col, '❌ 只能选择对方棋子'); return false; }
+        // 检查该棋子参与的连线数量
+        const lineCount = game.checkLineCount(target.row, target.col, opponent);
+        if (lineCount < 1) { game.showEffect(target.row, target.col, '❌ 必须选择参与连线的棋子'); return false; }
+        game.board[target.row][target.col] = player;
+        game.showEffect(target.row, target.col, '📦 偷梁换柱!');
+        game.renderBoard();
+        return true;
+    }
+}
+
+class M2_PointMulberryBlame extends Skill {
+    constructor() { super({id: 'm2', name: '指桑骂槐', icon: '🌳', cost: 2, cooldown: 3, category: '并战计', description: '下落子位置周围8格内的所有对方棋子，下回合无法参与连线判定', targetType: SkillTargetType.CELL}); }
+    use(game, target, player) {
+        // 检查目标位置是否为空
+        if (!game.canPlaceStone(target.row, target.col)) {
+            game.showEffect(target.row, target.col, '❌ 该位置不能落子');
+            return false;
+        }
+
+        // 先落子
+        game.board[target.row][target.col] = player;
+        game.moveHistory.push({ row: target.row, col: target.col, player: player });
+        game.addEnergy(player, game.energyPerMove);
+
+        // 标记周围8格的对方棋子为"削弱"状态
+        const opponent = game.getOpponent(player);
+        const dirs = [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
+        let weakenedCount = 0;
+
+        for (let [dr, dc] of dirs) {
+            const nr = target.row + dr;
+            const nc = target.col + dc;
+            if (nr >= 0 && nr < 15 && nc >= 0 && nc < 15 && game.board[nr][nc] === opponent) {
+                // 标记为削弱，这里使用一个简单的标记方式
+                if (!game.weakenedStones) game.weakenedStones = new Set();
+                game.weakenedStones.add(`${nr},${nc}`);
+                weakenedCount++;
+            }
+        }
+
+        game.showEffect(target.row, target.col, `🌳 指桑骂槐! 削弱${weakenCount}颗棋子`);
+        game.renderBoard();
+
+        // 检查胜利
+        if (game.checkWin(target.row, target.col)) {
+            game.gameOver = true;
+            game.showWinModal();
+            return true;
+        }
+
+        game.switchPlayer();
+        return true;
+    }
+}
+
+class M3_FeignMadness extends Skill {
+    constructor() { super({id: 'm3', name: '假痴不癫', icon: '🤪', cost: 1, cooldown: 2, category: '并战计', description: '本回合落子后，若该棋子未参与任何连线，立即获得2点能量', targetType: SkillTargetType.NONE}); }
+    use(game, target, player) {
+        game.isolatedStoneBonus = { player: player, active: true };
+        game.showEffect(7, 7, '🤪 假痴不癫! 孤子获能量');
+        return true;
+    }
+}
+
+class M4_RemoveLadder extends Skill {
+    constructor() { super({id: 'm4', name: '上屋抽梯', icon: '🪜', cost: 3, cooldown: 4, category: '并战计', description: '将对方一颗参与三连或四连的棋子移到相邻空位，破坏其连线', targetType: SkillTargetType.STONE}); }
+    use(game, target, player) {
+        const opponent = game.getOpponent(player);
+        if (game.board[target.row][target.col] !== opponent) { game.showEffect(target.row, target.col, '❌ 只能选择对方棋子'); return false; }
+        // 检查是否参与三连或四连
+        const lineCount = game.checkLineCount(target.row, target.col, opponent);
+        if (lineCount < 3) { game.showEffect(target.row, target.col, '❌ 必须选择参与三连或四连的棋子'); return false; }
+        game.pendingSkillEffect = { skill: this, player: player, type: 'displaceStone', origin: {row: target.row, col: target.col} };
+        game.showEffect(target.row, target.col, '🪜 选择移动位置');
+        return true;
+    }
+}
+
+class M5_TreeBlossom extends Skill {
+    constructor() { super({id: 'm5', name: '树上开花', icon: '🌸', cost: 4, cooldown: 5, category: '并战计', description: '选择己方一颗棋子，在其周围4格（十字形）内各放置1颗临时子，2回合后消失', targetType: SkillTargetType.STONE}); }
+    use(game, target, player) {
+        if (game.board[target.row][target.col] !== player) { game.showEffect(target.row, target.col, '❌ 只能选择己方棋子'); return false; }
+        const dirs = [[0,1],[0,-1],[1,0],[-1,0]];
+        let placed = 0;
+        for (let [dr, dc] of dirs) {
+            const nr = target.row + dr, nc = target.col + dc;
+            if (nr >= 0 && nr < 15 && nc >= 0 && nc < 15 && !game.board[nr][nc]) {
+                game.phantomStones.push({ row: nr, col: nc, player: player, turns: 2 });
+                placed++;
+            }
+        }
+        if (placed === 0) { game.showEffect(target.row, target.col, '❌ 无可用位置'); return false; }
+        game.showEffect(target.row, target.col, '🌸 树上开花!');
+        game.renderBoard();
+        return true;
+    }
+}
+
+class M6_GuestBecomeHost extends Skill {
+    constructor() { super({id: 'm6', name: '反客为主', icon: '🎭', cost: 6, cooldown: 7, category: '并战计', description: '交换双方场上参与连线最多的各一颗棋子的所有权', targetType: SkillTargetType.NONE}); }
+    use(game, target, player) {
+        const opponent = game.getOpponent(player);
+        // 找出双方参与连线最多的棋子
+        let playerMaxStone = null, playerMaxLines = -1;
+        let opponentMaxStone = null, opponentMaxLines = -1;
+        for (let r = 0; r < 15; r++) {
+            for (let c = 0; c < 15; c++) {
+                if (game.board[r][c] === player) {
+                    const lines = game.checkLineCount(r, c, player);
+                    if (lines > playerMaxLines) { playerMaxLines = lines; playerMaxStone = {row: r, col: c}; }
+                } else if (game.board[r][c] === opponent) {
+                    const lines = game.checkLineCount(r, c, opponent);
+                    if (lines > opponentMaxLines) { opponentMaxLines = lines; opponentMaxStone = {row: r, col: c}; }
+                }
+            }
+        }
+        if (!playerMaxStone || !opponentMaxStone) { game.showEffect(7, 7, '❌ 双方必须有连线棋子'); return false; }
+        // 交换所有权
+        game.board[playerMaxStone.row][playerMaxStone.col] = opponent;
+        game.board[opponentMaxStone.row][opponentMaxStone.col] = player;
+        game.showEffect(playerMaxStone.row, playerMaxStone.col, '🎭 反客为主!');
+        game.showEffect(opponentMaxStone.row, opponentMaxStone.col, '🔄 交换!');
+        game.renderBoard();
+        return true;
+    }
+}
+
+// 败战计（翻盘型）
+class D1_BeautyTrap extends Skill {
+    constructor() { super({id: 'd1', name: '美人计', icon: '💃', cost: 5, cooldown: 5, category: '败战计', description: '将自己接下来落子位置的棋子周围的对方棋子变为中立棋子一回合', targetType: SkillTargetType.NONE}); }
+    use(game, target, player) {
+        // 设置标志：下一颗落子触发美人计效果
+        game.beautyTrapPending = { player: player, active: true };
+        game.showEffect(7, 7, '💃 美人计! 下一颗落子将使周围敌方棋子中立');
+        return true;
+    }
+}
+
+class D2_EmptyCity extends Skill {
+    constructor() { super({id: 'd2', name: '空城计', icon: '🏰', cost: 2, cooldown: 3, category: '败战计', description: '指定一个3×3区域，本回合双方均不可在此区域内落子', targetType: SkillTargetType.CELL, range: 1}); }
+    use(game, target, player) {
+        const area = this.getArea(target.row, target.col).filter(p => p.row >= 0 && p.row < 15 && p.col >= 0 && p.col < 15);
+        game.forbiddenArea = { area: area, turns: 0, maxTurns: 2 }; // maxTurns=2表示持续两个玩家的回合
+        game.showEffect(target.row, target.col, '🏰 空城计!');
+        return true;
+    }
+}
+
+class D3_CounterSpy extends Skill {
+    constructor() { super({id: 'd3', name: '反间计', icon: '🕵️', cost: 4, cooldown: 5, category: '败战计', description: '查看对手手牌中（未展示的）随机1个技能，并使其CD+2', targetType: SkillTargetType.NONE}); }
+    use(game, target, player) {
+        const skills = game.skillManager.getSharedSkills().filter(s => s.currentCooldown === 0);
+        if (skills.length === 0) { game.showEffect(7, 7, '❌ 无可用技能'); return false; }
+        const toDelay = skills[Math.floor(Math.random() * skills.length)];
+        toDelay.currentCooldown = Math.min(toDelay.cooldown, toDelay.currentCooldown + 2);
+        game.showEffect(7, 7, `🕵️ 反间计! ${toDelay.name} CD+2`);
+        game.renderSkills();
+        return true;
+    }
+}
+
+class D4_BitterMeat extends Skill {
+    constructor() { super({id: 'd4', name: '苦肉计', icon: '💔', cost: 2, cooldown: 2, category: '败战计', description: '本回合落下的棋子永久免疫被移除、转化、交换的效果', targetType: SkillTargetType.NONE}); }
+    use(game, target, player) {
+        game.permanentImmune = { player: player, active: true };
+        game.showEffect(7, 7, '💔 苦肉计! 本子永久免疫');
+        return true;
+    }
+}
+
+class D5_LinkedPlan extends Skill {
+    constructor() { super({id: 'd5', name: '连环计', icon: '⛓️', cost: 5, cooldown: 6, category: '败战计', description: '本回合可连落2颗棋子，但下回合能量-1', targetType: SkillTargetType.NONE}); }
+    use(game, target, player) {
+        game.extraMoves = 1;
+        game.extraMoveOwner = player;
+        game.energyPenaltyNextTurn = { player: player, amount: 1 };
+        game.showEffect(7, 7, '⛓️ 连环计! 可连落2子');
+        return true;
+    }
+}
+
+class D6_RetreatBest extends Skill {
+    constructor() { super({id: 'd6', name: '走为上策', icon: '🏃', cost: 6, cooldown: 8, category: '败战计', description: '移除己方一颗棋子，在任意空位重新落子，且本回合免疫所有技能效果', targetType: SkillTargetType.STONE}); }
+    use(game, target, player) {
+        if (game.board[target.row][target.col] !== player) { game.showEffect(target.row, target.col, '❌ 只能选择己方棋子'); return false; }
+        game.pendingSkillEffect = { skill: this, player: player, type: 'retreatStone', origin: {row: target.row, col: target.col} };
+        game.showEffect(target.row, target.col, '🏃 选择新位置');
+        return true;
+    }
+}
+
+// ==================== 技能管理器 ====================
+class SkillManager {
+    constructor() {
+        this.skillRegistry = new Map();
+        this.sharedSkills = [];
+        this.testMode = false;
+    }
+    register(skillClass) { this.skillRegistry.set(skillClass.name, skillClass); }
+
+    setRandomSharedSkills(count) {
+        const allSkills = Array.from(this.skillRegistry.values()).filter(s => {
+            const instance = new s();
+            return instance.category !== 'Legacy';
+        });
+        const shuffled = allSkills.sort(() => Math.random() - 0.5);
+        const selected = shuffled.slice(0, Math.min(count, allSkills.length));
+        this.sharedSkills = selected.map(SkillClass => new SkillClass());
+        return this.sharedSkills;
+    }
+
+    setAllSkills() {
+        const allSkills = Array.from(this.skillRegistry.values()).filter(s => {
+            const instance = new s();
+            return instance.category !== 'Legacy';
+        });
+        this.sharedSkills = allSkills.map(SkillClass => new SkillClass());
+        return this.sharedSkills;
+    }
+
+    getSharedSkills() { return this.sharedSkills; }
+    updateCooldowns() {
+        if (this.testMode) {
+            // 测试模式：技能无冷却
+            this.sharedSkills.forEach(skill => skill.resetCooldown());
+        } else {
+            this.sharedSkills.forEach(skill => skill.tickCooldown());
+        }
+    }
+    resetAll() { this.sharedSkills.forEach(skill => skill.resetCooldown()); }
+    setTestMode(enabled) { this.testMode = enabled; }
+    isTestMode() { return this.testMode; }
+}
+
+// ==================== 游戏主类 ====================
+class GomokuGame {
+    constructor() {
+        this.board = Array(15).fill(null).map(() => Array(15).fill(null));
+        this.currentPlayer = 'black';
+        this.moveHistory = [];
+        this.gameOver = false;
+        this.extraMoves = 0;
+        this.extraMoveOwner = null;
+        this.frozenCells = new Map();
+        this.protectedStones = new Set();
+        this.phantomStones = [];
+        this.hiddenMoves = [];
+        this.disguisedStones = [];
+        this.soundEastState = null;
+        this.cannotWinThisTurn = false;
+        this.activeSkill = null;
+        this.pendingSkillEffect = null;
+        this.skillSeal = null;
+        this.forcedDefense = null;
+        this.forcedPlacement = null;
+        this.feintArea = null;
+        this.lockedArea = null;
+        this.emptyCityArea = null;
+        this.baitMove = null;
+        this.threatMark = null;
+        this.confusion = null;
+        this.immuneStones = null;
+        this.doubleSkill = null;
+        this.stealTurn = null;
+        this.skipTurn = false;
+        this.bonusEnergyNextTurn = null;
+        this.lastUsedSkill = { black: null, white: null };
+
+        // 新技能状态（混战计、并战计、败战计）
+        this.restrictedArea = null; // 关门捉贼：限制区域
+        this.isolatedStoneBonus = null; // 假痴不癫：孤子能量奖励
+        this.permanentImmune = null; // 苦肉计：永久免疫
+        this.energyPenaltyNextTurn = null; // 连环计：下回合能量惩罚
+        this.beautyTrap = null; // 美人计：旧版本陷阱（已废弃）
+        this.beautyTrapPending = null; // 美人计：下一颗落子触发效果
+        this.neutralStones = []; // 中立棋子（不计入连珠）
+        this.forbiddenArea = null; // 空城计：禁区
+        this.weakenedStones = new Set(); // 指桑骂槐：被削弱的棋子
+        this.immunePlayer = null; // 走为上策：本回合免疫所有技能效果
+
+        this.hasPlacedThisTurn = false;
+        this.usedSkillThisTurn = false;
+
+        // AI相关状态
+        this.aiEnabled = false;
+        this.aiDifficulty = 'easy';
+        this.aiPlayer = 'white'; // AI执白
+        this.aiInstance = null;
+
+        // 新技能状态
+        this.disguisedStones = []; // 暗度陈仓伪装的棋子
+        this.soundEastState = null; // 声东击西状态
+        this.cannotWinThisTurn = false; // 顺手牵羊等技能导致本回合无法获胜
+
+        this.maxEnergy = 10;
+        this.playerEnergy = { black: 0, white: 0 };
+        this.energyPerMove = 1;
+        
+        this.skillManager = new SkillManager();
+        this.registerAllSkills();
+        const skillCount = Math.floor(Math.random() * 5) + 6; // 6-10个技能
+        this.currentSkillPool = this.skillManager.setRandomSharedSkills(skillCount);
+        
+        this.initBoard();
+        this.renderSkills();
+        this.updateEnergyUI();
+        this.updateSkillPoolInfo(skillCount);
+        this.updateTestModeButton();
+        this.updateStatus('黑方回合<br><small>可直接落子或使用技能</small><br>能量: 0 / 10');
+    }
+
+    registerAllSkills() {
+        // Legacy skills (保留但不加入随机池)
+        this.skillManager.register(LegacySkills.ThunderStrike);
+        this.skillManager.register(LegacySkills.IceSeal);
+        this.skillManager.register(LegacySkills.Chameleon);
+        this.skillManager.register(LegacySkills.TimeRewind);
+        this.skillManager.register(LegacySkills.DoubleStrike);
+        this.skillManager.register(LegacySkills.DivineShield);
+        
+        // 36计 skills - 要添加新技能，请在此注册：
+        // this.skillManager.register(YourNewSkillClass);
+        this.skillManager.register(S1_BlindCrossSea);
+        this.skillManager.register(S2_SurroundWeiSaveZhao);
+        this.skillManager.register(S3_BorrowKnifeKill);
+        this.skillManager.register(S4_WaitForWork);
+        this.skillManager.register(S5_LootBurning);
+        this.skillManager.register(S6_SoundEastHitWest);
+        this.skillManager.register(E1_CreateFromNothing);
+        this.skillManager.register(E2_HideInDark);
+        this.skillManager.register(E3_WatchFireAcross);
+        this.skillManager.register(E4_HideKnifeInSmile);
+        this.skillManager.register(E5_TreeOnPeach);
+        this.skillManager.register(E6_CatchSheep);
+        this.skillManager.register(A1_StartleSnake);
+        this.skillManager.register(A2_BorrowSoulReturn);
+        this.skillManager.register(A3_LureTigerLeave);
+        this.skillManager.register(A4_WantCatchLetGo);
+        this.skillManager.register(A5_ThrowBrickAttract);
+        this.skillManager.register(A6_CatchThiefCatchKing);
+        this.skillManager.register(C1_RemoveFirewood);
+        this.skillManager.register(C2_MuddyWaterFish);
+        this.skillManager.register(C3_GoldenCicadaShell);
+        this.skillManager.register(C4_CloseDoorCatchThief);
+        this.skillManager.register(C5_BefriendDistant);
+        this.skillManager.register(C6_FakePathAttack);
+        this.skillManager.register(M1_StealBeamChangePost);
+        this.skillManager.register(M2_PointMulberryBlame);
+        this.skillManager.register(M3_FeignMadness);
+        this.skillManager.register(M4_RemoveLadder);
+        this.skillManager.register(M5_TreeBlossom);
+        this.skillManager.register(M6_GuestBecomeHost);
+        this.skillManager.register(D1_BeautyTrap);
+        this.skillManager.register(D2_EmptyCity);
+        this.skillManager.register(D3_CounterSpy);
+        this.skillManager.register(D4_BitterMeat);
+        this.skillManager.register(D5_LinkedPlan);
+        this.skillManager.register(D6_RetreatBest);
+    }
+
+    initBoard() {
+        const boardEl = document.getElementById('board');
+        if (!boardEl) return;
+        boardEl.innerHTML = '';
+        for (let row = 0; row < 15; row++) {
+            for (let col = 0; col < 15; col++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.dataset.row = row;
+                cell.dataset.col = col;
+                if ((row === 3 || row === 7 || row === 11) && (col === 3 || col === 7 || col === 11)) {
+                    cell.classList.add('star-point');
+                    const dot = document.createElement('div');
+                    dot.className = 'star-dot';
+                    cell.appendChild(dot);
+                }
+                cell.addEventListener('click', () => this.handleCellClick(row, col));
+                boardEl.appendChild(cell);
+            }
+        }
+    }
+
+
+    handleCellClick(row, col) {
+        if (this.gameOver) return;
+
+        // ========== AI模式下的玩家落子限制 ==========
+        if (this.aiEnabled && this.aiInstance) {
+            // 检查是否是AI回合
+            if (this.currentPlayer === this.aiPlayer) {
+                this.showEffect(7, 7, '⏳ AI思考中，请稍候...');
+                return;
+            }
+            // 检查AI是否正在思考
+            if (this.aiInstance.isThinking) {
+                this.showEffect(7, 7, '⏳ AI思考中，请稍候...');
+                return;
+            }
+        }
+
+        // ========== 处理pending技能效果 ==========
+        if (this.pendingSkillEffect) {
+            this.handlePendingEffect(row, col);
+            return;
+        }
+
+        // ========== 使用已激活的技能 ==========
+        if (this.activeSkill) {
+            // 检查技能封印
+            if (this.skillSeal && this.skillSeal.player === this.currentPlayer && this.skillSeal.turns > 0) {
+                this.showEffect(7, 7, '❌ 技能被封印');
+                this.activeSkill = null;
+                this.renderSkills();
+                return;
+            }
+
+            const target = { row, col, stone: this.board[row][col] };
+            if (!this.validateSkillTarget(this.activeSkill, target)) return;
+
+            const playerBeforeSkill = this.currentPlayer;
+            if (this.activeSkill.use(this, target, this.currentPlayer)) {
+                this.consumeEnergy(playerBeforeSkill, this.activeSkill.cost);
+                this.activeSkill.startCooldown();
+                this.lastUsedSkill[playerBeforeSkill] = this.activeSkill.name;
+                this.activeSkill = null;
+                this.renderSkills();
+                this.renderBoard(); // 添加：重新渲染棋盘，更新pending技能的高亮显示
+                this.updateEnergyUI();
+
+                // 检查技能是否切换了玩家（包含落子的技能会调用switchPlayer）
+                if (this.currentPlayer === playerBeforeSkill) {
+                    // 技能没有切换玩家
+                    // 检查是否设置了跳过回合（如欲擒故纵、以逸待劳）
+                    if (!this.skipTurn) {
+                        // 如果没有跳过回合，需要继续落子
+                        this.usedSkillThisTurn = true;
+                        this.updateStatus(`${this.currentPlayer === 'black' ? '黑方' : '白方'}回合 - 请落子<br><small>技能已使用，请落子结束回合</small><br>能量: ${this.getPlayerEnergy(this.currentPlayer)} / ${this.maxEnergy}`);
+                    } else {
+                        // 如果设置了跳过回合，直接调用finishTurn结束回合
+                        this.finishTurn();
+                    }
+                }
+                // 如果技能切换了玩家，不需要额外操作，回合已经结束
+            }
+            return;
+        }
+
+        // ========== 落子逻辑 ==========
+        // 强制落子限制
+        if (this.forcedPlacement && this.forcedPlacement.player === this.currentPlayer) {
+            if (this.forcedPlacement.type === 'restricted') {
+                const valid = this.forcedPlacement.positions.some(p => p.row === row && p.col === col);
+                if (!valid) { this.showEffect(7, 7, '❌ 必须落在指定位置'); return; }
+            }
+        }
+
+        // 围魏救赵强制防守限制
+        if (this.forcedDefense && this.forcedDefense.player === this.currentPlayer) {
+            const valid = this.forcedDefense.positions.some(p => p.row === row && p.col === col);
+            if (!valid) {
+                this.showEffect(7, 7, '🎯 必须在标记棋子旁边落子');
+                return;
+            }
+        }
+
+        // 封锁区域限制
+        if (this.lockedArea && this.lockedArea.turns > 0) {
+            const inArea = Math.abs(row - this.lockedArea.row) <= this.lockedArea.range &&
+                          Math.abs(col - this.lockedArea.col) <= this.lockedArea.range;
+            if (!inArea) { this.showEffect(7, 7, '🚪 必须在封锁区内落子'); return; }
+        }
+
+        // 空城计限制
+        if (this.emptyCityArea && this.emptyCityArea.turns > 0) {
+            const inArea = this.emptyCityArea.area.some(p => p.row === row && p.col === col);
+            if (inArea) { this.showEffect(7, 7, '🏰 空城区域不能落子'); return; }
+        }
+
+        // 关门捉贼：对手下一回合必须在此区域内落子
+        if (this.restrictedArea && this.restrictedArea.player === this.currentPlayer) {
+            const inArea = this.restrictedArea.area.some(p => p.row === row && p.col === col);
+            if (!inArea) {
+                this.showEffect(7, 7, '🚪 关门捉贼：必须在指定区域内落子');
+                return;
+            }
+        }
+
+        // 空城计：本回合双方均不可在此区域内落子
+        if (this.forbiddenArea) {
+            const inArea = this.forbiddenArea.area.some(p => p.row === row && p.col === col);
+            if (inArea) {
+                this.showEffect(7, 7, '🏰 空城计：此区域禁止落子');
+                return;
+            }
+        }
+
+        // 普通落子
+        if (!this.canPlaceStone(row, col)) return;
+
+        // 美人计混乱效果
+        if (this.confusion && this.confusion.player === this.currentPlayer && Math.random() < this.confusion.chance) {
+            const empty = [];
+            for (let r = 0; r < 15; r++) for (let c = 0; c < 15; c++) if (!this.board[r][c]) empty.push({r, c});
+            if (empty.length > 0) {
+                const random = empty[Math.floor(Math.random() * empty.length)];
+                row = random.r; col = random.c;
+                this.showEffect(7, 7, '💃 美人计生效! 随机落子');
+            }
+        }
+
+        // 执行落子
+        this.doPlaceStone(row, col);
+    }
+
+    doPlaceStone(row, col) {
+        if (this.soundEastState && this.soundEastState.player === this.currentPlayer) {
+            // 声东击西：本回合的两颗落子都是虚像子
+            this.soundEastState.placed++;
+            this.soundEastState.positions.push({row, col});
+            // 放入 phantomStones 作为虚像子，下一自己回合开始时随机删除一颗
+            this.phantomStones.push({ row: row, col: col, player: this.currentPlayer, turns: 999, isSoundEast: true });
+            this.addEnergy(this.currentPlayer, this.energyPerMove);
+            this.hasPlacedThisTurn = true;
+            this.renderBoard();
+
+            // 检查胜利（但本回合无法获胜）
+            const canWin = this.checkWin(row, col);
+            if (canWin) {
+                this.showEffect(row, col, '🎭 声东击西：本回合无法获胜');
+            }
+
+            if (this.soundEastState.placed >= 2) {
+                // 两颗虚像子都放完了，回合结束
+                this.soundEastState = null;
+                if (this.moveHistory.length >= 225) {
+                    this.gameOver = true;
+                    this.showDrawModal();
+                    return;
+                }
+                // 直接结束回合，不需要再落子
+                this.finishTurn();
+            } else {
+                this.updateStatus(`🎭 声东击西: 请落第二颗虚像子<br>能量: ${this.getPlayerEnergy(this.currentPlayer)} / ${this.maxEnergy}`);
+            }
+            return;
+        }
+
+        this.board[row][col] = this.currentPlayer;
+        this.moveHistory.push({ row, col, player: this.currentPlayer });
+        this.addEnergy(this.currentPlayer, this.energyPerMove);
+        this.hasPlacedThisTurn = true;
+
+        // 美人计：将周围对方棋子变为中立棋子
+        if (this.beautyTrapPending && this.beautyTrapPending.active && this.beautyTrapPending.player === this.currentPlayer) {
+            const dirs = [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
+            const opponent = this.getOpponent(this.currentPlayer);
+            let neutralizedCount = 0;
+            for (let [dr, dc] of dirs) {
+                const nr = row + dr, nc = col + dc;
+                if (nr >= 0 && nr < 15 && nc >= 0 && nc < 15 && this.board[nr][nc] === opponent) {
+                    // 标记为中立棋子
+                    this.neutralStones.push({ row: nr, col: nc, turns: 2, originalPlayer: opponent });
+                    neutralizedCount++;
+                }
+            }
+            this.beautyTrapPending.active = false;
+            if (neutralizedCount > 0) {
+                this.showEffect(row, col, `💃 美人计! ${neutralizedCount}颗棋子中立`);
+            }
+        }
+
+        // 检查美人计陷阱（旧版本，保留以保持兼容性）
+        if (this.beautyTrap && this.beautyTrap.player !== this.currentPlayer) {
+            if (row === this.beautyTrap.position.row && col === this.beautyTrap.position.col) {
+                // 中了美人计，该子转化为对方的棋子
+                const trapOwner = this.beautyTrap.player;
+                this.board[row][col] = trapOwner;
+                this.showEffect(row, col, '💃 美人计! 棋子转化');
+                this.renderBoard();
+                this.beautyTrap = null;
+            }
+        }
+
+        // 假痴不癫：孤子能量奖励
+        if (this.isolatedStoneBonus && this.isolatedStoneBonus.player === this.currentPlayer && this.isolatedStoneBonus.active) {
+            const lineCount = this.checkLineCount(row, col, this.currentPlayer);
+            if (lineCount === 1) { // 孤子（只有自己）
+                this.addEnergy(this.currentPlayer, 2);
+                this.showEffect(row, col, '🤪 假痴不癫! +2能量');
+                this.isolatedStoneBonus.active = false;
+            }
+        }
+
+        // 苦肉计：永久免疫标记
+        if (this.permanentImmune && this.permanentImmune.player === this.currentPlayer && this.permanentImmune.active) {
+            // 标记该棋子为永久免疫
+            if (!this.immuneStones) this.immuneStones = new Set();
+            this.immuneStones.add(`${row},${col}`);
+            this.showEffect(row, col, '💔 永久免疫');
+            this.permanentImmune.active = false;
+        }
+
+        if (this.threatMark && this.threatMark.player === this.currentPlayer) {
+            this.threatMark = null;
+        }
+
+        this.renderBoard();
+
+        if (this.checkWin(row, col)) {
+            if (this.cannotWinThisTurn) {
+                this.showEffect(row, col, '🐑 顺手牵羊：本回合无法获胜');
+                this.finishTurn();
+            } else {
+                this.gameOver = true;
+                this.showWinModal();
+            }
+            return;
+        }
+
+        if (this.moveHistory.length === 225) {
+            this.gameOver = true;
+            this.showDrawModal();
+            return;
+        }
+
+        // 如果使用了技能且技能不包含落子，则需要再落一次才能结束回合
+        // 但如果技能本身就包含落子（如假痴不癫、笑里藏刀等），则直接切换
+        // 这里我们简化：如果 usedSkillThisTurn 为 true，说明使用了不包含落子的技能，需要继续落子
+        // 否则直接结束回合
+
+        // 实际上，很多技能已经在内部调用了 switchPlayer()，所以这里需要区分
+        // 我们通过检查技能是否在其use方法中调用了switchPlayer来判断
+
+        // 更简单的方案：如果技能不包含落子效果，则usedSkillThisTurn=true，需要继续落子
+        // 但像"假痴不癫"这种包含落子的技能，会在内部调用switchPlayer，所以不会执行到这里
+        // 像"隔岸观火"这种不包含落子的技能，会设置usedSkillThisTurn=true
+
+        // 所以这里的逻辑是：如果usedSkillThisTurn为false，说明是直接落子，结束回合
+        // 如果usedSkillThisTurn为true，说明用了技能再落子，现在落子了，也结束回合
+
+        this.finishTurn();
+    }
+    
+    finishTurn() {
+        this.usedSkillThisTurn = false;
+        this.hasPlacedThisTurn = false;
+
+        if (this.skipTurn) {
+            this.skipTurn = false;
+            this.switchPlayer();
+        } else if (this.extraMoves > 0 && this.extraMoveOwner === this.currentPlayer) {
+            this.extraMoves--;
+            if (this.extraMoves === 0) this.extraMoveOwner = null;
+            this.updateStatus(`🎯 ${this.currentPlayer === 'black' ? '黑方' : '白方'} 额外回合!<br>能量: ${this.getPlayerEnergy(this.currentPlayer)} / ${this.maxEnergy}`);
+        } else if (this.doubleSkill && this.doubleSkill.player === this.currentPlayer && this.doubleSkill.used < 1) {
+            this.doubleSkill.used++;
+            this.updateStatus(`⛓️ 连环计: 额外技能回合<br>能量: ${this.getPlayerEnergy(this.currentPlayer)} / ${this.maxEnergy}`);
+        } else {
+            this.doubleSkill = null;
+            // 正常切换玩家
+            const nextPlayer = this.currentPlayer === 'black' ? 'white' : 'black';
+
+            // 检查反客为主：如果下一玩家是被夺取的，则跳过
+            if (this.stealTurn && this.stealTurn.from === nextPlayer) {
+                this.stealTurn = null;
+                // 不切换玩家，让当前玩家继续
+                this.updateStatus(`🎭 反客为主! ${this.currentPlayer === 'black' ? '黑方' : '白方'}继续回合<br>能量: ${this.getPlayerEnergy(this.currentPlayer)} / ${this.maxEnergy}`);
+            } else {
+                this.switchPlayer();
+            }
+        }
+    }
+
+
+    handlePendingEffect(row, col) {
+        const effect = this.pendingSkillEffect;
+        if (effect.type === 'placeAnywhere') {
+            // 瞒天过海：在任意空位重新落子（这是技能效果，不是正常落子）
+            if (!this.canPlaceStone(row, col)) return;
+            this.board[row][col] = effect.player;
+            this.moveHistory.push({ row, col, player: effect.player });
+            this.showEffect(row, col, '🌊 重新落子!');
+            this.pendingSkillEffect = null;
+            this.renderBoard(); // 在清除pending状态后重新渲染，清除高亮
+            // 检查胜利
+            if (this.checkWin(row, col)) {
+                this.gameOver = true;
+                this.showWinModal();
+                return;
+            }
+            // 技能的重新落子完成，但玩家还需要正常落子才能结束回合
+            this.usedSkillThisTurn = true;
+            this.updateStatus(`${this.currentPlayer === 'black' ? '黑方' : '白方'}回合 - 请落子<br><small>技能已使用，请落子结束回合</small><br>能量: ${this.getPlayerEnergy(this.currentPlayer)} / ${this.maxEnergy}`);
+        } else if (effect.type === 'pushStone') {
+            // 顺手牵羊：推移棋子
+            const dr = row - effect.from.row;
+            const dc = col - effect.from.col;
+            if (Math.abs(dr) + Math.abs(dc) !== 1) { this.showEffect(7, 7, '❌ 请选择相邻方向'); return; }
+            const nr = effect.from.row + dr, nc = effect.from.col + dc;
+            if (nr < 0 || nr >= 15 || nc < 0 || nc >= 15 || this.board[nr][nc]) {
+                this.showEffect(7, 7, '❌ 该方向无法推移'); return;
+            }
+            const stone = this.board[effect.from.row][effect.from.col];
+            this.board[nr][nc] = stone;
+            this.board[effect.from.row][effect.from.col] = null;
+            this.showEffect(nr, nc, '🐑 顺手牵羊!');
+            this.pendingSkillEffect = null;
+            this.renderBoard(); // 在清除pending状态后重新渲染，清除高亮
+            // 技能不包含落子，需要继续落子
+            this.updateStatus(`${this.currentPlayer === 'black' ? '黑方' : '白方'}回合 - 请落子<br><small>技能已使用，请落子结束回合</small><br>能量: ${this.getPlayerEnergy(this.currentPlayer)} / ${this.maxEnergy}`);
+        } else if (effect.type === 'swapStones') {
+            // 偷梁换柱：交换两颗棋子
+            const stone2 = this.board[row][col];
+            if (!stone2 || stone2 === this.board[effect.first.row][effect.first.col]) return;
+            const temp = this.board[effect.first.row][effect.first.col];
+            this.board[effect.first.row][effect.first.col] = stone2;
+            this.board[row][col] = temp;
+            this.showEffect(row, col, '📦 偷梁换柱!');
+            this.pendingSkillEffect = null;
+            this.renderBoard(); // 在清除pending状态后重新渲染，清除高亮
+            // 技能不包含落子，需要继续落子
+            this.updateStatus(`${this.currentPlayer === 'black' ? '黑方' : '白方'}回合 - 请落子<br><small>技能已使用，请落子结束回合</small><br>能量: ${this.getPlayerEnergy(this.currentPlayer)} / ${this.maxEnergy}`);
+        } else if (effect.type === 'swapWithOpponent') {
+            // 借刀杀人：选择己方棋子与对方棋子交换
+            const myStone = this.board[row][col];
+            if (!myStone || myStone !== effect.player) { this.showEffect(7, 7, '❌ 请选择己方棋子'); return; }
+            const oppPos = effect.opponentStone;
+            const oppStone = this.board[oppPos.row][oppPos.col];
+            // 交换
+            this.board[oppPos.row][oppPos.col] = myStone;
+            this.board[row][col] = oppStone;
+            this.showEffect(oppPos.row, oppPos.col, '🔪 借刀杀人!');
+            this.showEffect(row, col, '🔪 交换!');
+            this.pendingSkillEffect = null;
+            this.renderBoard(); // 在清除pending状态后重新渲染，清除高亮
+            // 技能不包含落子，需要继续落子
+            this.updateStatus(`${this.currentPlayer === 'black' ? '黑方' : '白方'}回合 - 请落子<br><small>技能已使用，请落子结束回合</small><br>能量: ${this.getPlayerEnergy(this.currentPlayer)} / ${this.maxEnergy}`);
+        } else if (effect.type === 'blockFourLine') {
+            // 李代桃僵：选择对方四连中的一颗棋子删除
+            const opponent = this.getOpponent(effect.player);
+            if (this.board[row][col] !== opponent) { this.showEffect(7, 7, '❌ 请选择对方棋子'); return; }
+            // 检查该棋子是否在四连中
+            if (!this.isInFourLine(row, col, opponent)) {
+                this.showEffect(row, col, '❌ 该棋子不在四连中');
+                return;
+            }
+            // 删除对方棋子
+            this.board[row][col] = null;
+            this.showEffect(row, col, '🍑 删除四连棋子!');
+            this.pendingSkillEffect = null;
+            this.renderBoard(); // 在清除pending状态后重新渲染，清除高亮
+            // 技能不包含落子，需要继续落子
+            this.usedSkillThisTurn = true;
+            this.updateStatus(`${this.currentPlayer === 'black' ? '黑方' : '白方'}回合 - 请落子<br><small>技能已使用，请落子结束回合</small><br>能量: ${this.getPlayerEnergy(this.currentPlayer)} / ${this.maxEnergy}`);
+        } else if (effect.type === 'moveStone') {
+            // 浑水摸鱼：移动己方棋子到相邻空位
+            if (!this.canPlaceStone(row, col)) return;
+            const dr = Math.abs(row - effect.origin.row);
+            const dc = Math.abs(col - effect.origin.col);
+            if (dr + dc !== 1) { this.showEffect(7, 7, '❌ 请选择相邻位置'); return; }
+            this.board[row][col] = this.board[effect.origin.row][effect.origin.col];
+            this.board[effect.origin.row][effect.origin.col] = null;
+            this.showEffect(row, col, '🐟 浑水摸鱼!');
+            this.pendingSkillEffect = null;
+            this.renderBoard(); // 在清除pending状态后重新渲染，清除高亮
+            this.usedSkillThisTurn = true;
+            this.updateStatus(`${this.currentPlayer === 'black' ? '黑方' : '白方'}回合 - 请落子<br><small>技能已使用，请落子结束回合</small><br>能量: ${this.getPlayerEnergy(this.currentPlayer)} / ${this.maxEnergy}`);
+        } else if (effect.type === 'teleportStone') {
+            // 金蝉脱壳：移动到任意位置但下回合能量-2
+            if (!this.canPlaceStone(row, col)) return;
+            this.board[row][col] = this.board[effect.origin.row][effect.origin.col];
+            this.board[effect.origin.row][effect.origin.col] = null;
+            // 设置下回合能量惩罚
+            this.energyPenaltyNextTurn = { player: effect.player, amount: 2 };
+            this.showEffect(row, col, '🦗 金蝉脱壳! 下回合-2能量');
+            this.pendingSkillEffect = null;
+            this.renderBoard(); // 在清除pending状态后重新渲染，清除高亮
+            this.usedSkillThisTurn = true;
+            this.updateStatus(`${this.currentPlayer === 'black' ? '黑方' : '白方'}回合 - 请落子<br><small>技能已使用，请落子结束回合</small><br>能量: ${this.getPlayerEnergy(this.currentPlayer)} / ${this.maxEnergy}`);
+        } else if (effect.type === 'weakenSurrounding') {
+            // 指桑骂槐：这个效果现在直接在技能的use方法中处理，不应该进入这里
+            console.error('[Game] weakenSurrounding should not reach handlePendingEffect');
+            this.pendingSkillEffect = null;
+        } else if (effect.type === 'displaceStone') {
+            // 上屋抽梯：破坏连线
+            if (!this.canPlaceStone(row, col)) return;
+            const dr = Math.abs(row - effect.origin.row);
+            const dc = Math.abs(col - effect.origin.col);
+            if (dr + dc !== 1) { this.showEffect(7, 7, '❌ 请选择相邻位置'); return; }
+            this.board[row][col] = this.board[effect.origin.row][effect.origin.col];
+            this.board[effect.origin.row][effect.origin.col] = null;
+            this.showEffect(row, col, '🪜 上屋抽梯! 破坏连线');
+            this.pendingSkillEffect = null;
+            this.renderBoard(); // 在清除pending状态后重新渲染，清除高亮
+            this.usedSkillThisTurn = true;
+            this.updateStatus(`${this.currentPlayer === 'black' ? '黑方' : '白方'}回合 - 请落子<br><small>技能已使用，请落子结束回合</small><br>能量: ${this.getPlayerEnergy(this.currentPlayer)} / ${this.maxEnergy}`);
+        } else if (effect.type === 'retreatStone') {
+            // 走为上策：移除己方棋子，在任意空位重新落子
+            if (!this.canPlaceStone(row, col)) return;
+            this.board[row][col] = this.board[effect.origin.row][effect.origin.col];
+            this.board[effect.origin.row][effect.origin.col] = null;
+            // 标记该棋子为永久免疫
+            if (!this.immuneStones) this.immuneStones = new Set();
+            this.immuneStones.add(`${row},${col}`);
+            // 设置本回合免疫所有技能效果
+            if (!this.immunePlayer) this.immunePlayer = null;
+            this.immunePlayer = effect.player;
+            this.showEffect(row, col, '🏃 走为上策! 移动+免疫');
+            this.pendingSkillEffect = null;
+            this.renderBoard(); // 在清除pending状态后重新渲染，清除高亮
+            this.usedSkillThisTurn = true;
+            this.updateStatus(`${this.currentPlayer === 'black' ? '黑方' : '白方'}回合 - 请落子<br><small>技能已使用，请落子结束回合</small><br>能量: ${this.getPlayerEnergy(this.currentPlayer)} / ${this.maxEnergy}`);
+        } else if (effect.type === 'removeOpponentStone') {
+            // 远交近攻：选择删除对方棋子
+            const opponent = this.getOpponent(effect.player);
+            if (this.board[row][col] !== opponent) {
+                this.showEffect(7, 7, '❌ 请选择对方棋子');
+                return;
+            }
+            this.board[row][col] = null;
+            this.pendingSkillEffect = null;
+            this.renderBoard(); // 在清除pending状态后重新渲染，清除高亮
+            this.usedSkillThisTurn = true;
+            this.showEffect(row, col, '❌ 删除!');
+            this.updateStatus(`${this.currentPlayer === 'black' ? '黑方' : '白方'}回合 - 请落子<br><small>技能已使用，请落子结束回合</small><br>能量: ${this.getPlayerEnergy(this.currentPlayer)} / ${this.maxEnergy}`);
+        }
+    }
+
+    validateSkillTarget(skill, target) {
+        if (skill.targetType === 'stone' && !target.stone) return false;
+        if (skill.targetType === 'cell' && target.stone && skill.id !== 's1' && skill.id !== 'c4') return false;
+        return true;
+    }
+
+    canPlaceStone(row, col) {
+        if (this.board[row][col]) return false;
+        // 检查幻想子
+        if (this.phantomStones.some(p => p.row === row && p.col === col)) return false;
+        if (this.frozenCells.has(`${row},${col}`)) return false;
+        return true;
+    }
+
+    getPlayerEnergy(player) { return this.playerEnergy[player]; }
+    getOpponent(player) { return player === 'black' ? 'white' : 'black'; }
+    
+    addEnergy(player, amount) {
+        this.playerEnergy[player] = Math.min(this.playerEnergy[player] + amount, this.maxEnergy);
+        this.updateEnergyUI();
+    }
+    
+    consumeEnergy(player, amount) {
+        this.playerEnergy[player] = Math.max(this.playerEnergy[player] - amount, 0);
+        this.updateEnergyUI();
+    }
+    
+    updateEnergyUI() {
+        const blackPct = (this.playerEnergy.black / this.maxEnergy) * 100;
+        const whitePct = (this.playerEnergy.white / this.maxEnergy) * 100;
+        document.getElementById('black-energy-fill').style.width = `${blackPct}%`;
+        document.getElementById('black-energy-text').textContent = `${this.playerEnergy.black} / ${this.maxEnergy}`;
+        document.getElementById('white-energy-fill').style.width = `${whitePct}%`;
+        document.getElementById('white-energy-text').textContent = `${this.playerEnergy.white} / ${this.maxEnergy}`;
+    }
+    
+    updateSkillPoolInfo(count) {
+        const info = document.getElementById('skill-pool-info');
+        if (info) info.textContent = `本局随机 ${count} 个技能 | 双方共享CD`;
+    }
+
+    switchPlayer() {
+        const playerEndingTurn = this.currentPlayer; // 记录谁结束回合
+        this.currentPlayer = this.currentPlayer === 'black' ? 'white' : 'black';
+        this.hasPlacedThisTurn = false;
+        this.usedSkillThisTurn = false;
+        this.skillManager.updateCooldowns();
+        this.onTurnEnd(playerEndingTurn); // 传递结束回合的玩家
+        this.renderSkills();
+        this.renderBoard(); // 添加：回合切换时重新渲染棋盘，更新高亮显示
+        this.updatePlayerIndicator();
+
+        // 能量奖励
+        if (this.bonusEnergyNextTurn && this.bonusEnergyNextTurn.player === this.currentPlayer) {
+            this.addEnergy(this.currentPlayer, this.bonusEnergyNextTurn.amount);
+            this.bonusEnergyNextTurn = null;
+        }
+
+        this.updateStatus(`${this.currentPlayer === 'black' ? '黑方' : '白方'}回合<br><small>可直接落子或使用技能</small><br>能量: ${this.getPlayerEnergy(this.currentPlayer)} / ${this.maxEnergy}`);
+
+        // 检查是否是AI回合
+        if (this.aiEnabled && this.currentPlayer === this.aiPlayer && !this.gameOver) {
+            setTimeout(() => this.triggerAIAction(), 500);
+        }
+    }
+
+    onTurnEnd(playerEndingTurn) {
+        // playerEndingTurn 是刚刚结束回合的玩家
+        // 减少各种效果持续时间
+        const newFrozen = new Map();
+        this.frozenCells.forEach((turns, key) => {
+            turns--;
+            if (turns > 0) newFrozen.set(key, turns);
+            else {
+                const [row, col] = key.split(',').map(Number);
+                const cell = this.getCellElement(row, col);
+                if (cell) cell.style.background = '';
+            }
+        });
+        this.frozenCells = newFrozen;
+
+        // 处理普通幻想子（无中生有）
+        this.phantomStones = this.phantomStones.filter(p => {
+            if (p.isSoundEast) return true; // 声东击西的幻想子单独处理
+            p.turns--;
+            return p.turns > 0;
+        });
+
+        this.hiddenMoves = this.hiddenMoves.filter(h => { h.turns--; return h.turns > 0; });
+
+        // 处理伪装棋子过期
+        if (this.disguisedStones) {
+            this.disguisedStones = this.disguisedStones.filter(d => { d.turns--; return d.turns > 0; });
+        }
+
+        // 处理声东击西：在下一个自己回合开始时随机删除一颗虚像子
+        const soundEastPhantoms = this.phantomStones.filter(p => p.isSoundEast && p.player === this.currentPlayer);
+        if (soundEastPhantoms.length > 1) {
+            // 这是该玩家的下一个回合，随机删除一颗虚像子
+            const toRemove = soundEastPhantoms[Math.floor(Math.random() * soundEastPhantoms.length)];
+            this.phantomStones = this.phantomStones.filter(p => p !== toRemove);
+            this.showEffect(toRemove.row, toRemove.col, '🎭 声东击西：虚像子消失');
+            this.renderBoard();
+        }
+
+        // 重置本回合无法获胜状态
+        this.cannotWinThisTurn = false;
+
+        if (this.forcedDefense) { this.forcedDefense.turns--; if (this.forcedDefense.turns <= 0) this.forcedDefense = null; }
+        // skillSeal 处理
+        if (this.skillSeal) {
+            if (this.skillSeal.nextTurnOnly && this.skillSeal.player === playerEndingTurn) {
+                // nextTurnOnly: 在该玩家第一次结束回合时，将 nextTurnOnly 设为 false
+                // 这样封印会持续到下一次该玩家结束回合
+                this.skillSeal.nextTurnOnly = false;
+            } else if (this.skillSeal.player === playerEndingTurn && !this.skillSeal.nextTurnOnly) {
+                this.skillSeal.turns--;
+                if (this.skillSeal.turns <= 0) this.skillSeal = null;
+            }
+        }
+        if (this.forcedPlacement) { this.forcedPlacement.turns--; if (this.forcedPlacement.turns <= 0) this.forcedPlacement = null; }
+        if (this.feintArea) { this.feintArea.turns--; if (this.feintArea.turns <= 0) this.feintArea = null; }
+        if (this.lockedArea) { this.lockedArea.turns--; if (this.lockedArea.turns <= 0) this.lockedArea = null; }
+        if (this.emptyCityArea) { this.emptyCityArea.turns--; if (this.emptyCityArea.turns <= 0) this.emptyCityArea = null; }
+        // confusion 也只在该玩家的回合结束时减少
+        if (this.confusion) {
+            if (this.confusion.nextTurnOnly && this.confusion.player === playerEndingTurn) {
+                this.confusion.nextTurnOnly = false;
+            } else if (this.confusion.player === playerEndingTurn && !this.confusion.nextTurnOnly) {
+                this.confusion.turns--;
+                if (this.confusion.turns <= 0) this.confusion = null;
+            }
+        }
+
+        // 新技能状态处理
+        // 关门捉贼：持续到对手回合结束
+        if (this.restrictedArea) {
+            this.restrictedArea.turns++;
+            if (this.restrictedArea.maxTurns && this.restrictedArea.turns > this.restrictedArea.maxTurns) {
+                this.restrictedArea = null;
+            }
+        }
+
+        // 空城计：持续两个玩家的回合（使用者和对手各一次）
+        if (this.forbiddenArea) {
+            this.forbiddenArea.turns++;
+            if (this.forbiddenArea.maxTurns && this.forbiddenArea.turns >= this.forbiddenArea.maxTurns) {
+                this.forbiddenArea = null;
+            }
+        }
+
+        // 美人计：旧版本陷阱（已废弃，保留以保持兼容性）
+        if (this.beautyTrap) {
+            this.beautyTrap.turns--;
+            if (this.beautyTrap.turns <= 0) this.beautyTrap = null;
+        }
+
+        // 中立棋子：每回合减少持续时间，到对方下一回合结束时恢复
+        this.neutralStones = this.neutralStones.filter(stone => {
+            stone.turns--;
+            if (stone.turns <= 0) {
+                // 中立效果结束，棋子恢复正常
+                this.showEffect(stone.row, stone.col, '💃 中立解除');
+                return false;
+            }
+            return true;
+        });
+
+        // 连环计：下回合能量惩罚
+        if (this.energyPenaltyNextTurn && this.energyPenaltyNextTurn.player === this.currentPlayer) {
+            this.playerEnergy[this.currentPlayer] = Math.max(0, this.playerEnergy[this.currentPlayer] - this.energyPenaltyNextTurn.amount);
+            this.energyPenaltyNextTurn = null;
+        }
+    }
+
+    // 获取位置上的玩家（包括幻想子）
+    getPlayerAt(row, col) {
+        if (this.board[row][col]) {
+            // 检查是否为中立棋子
+            const isNeutral = this.neutralStones.some(s => s.row === row && s.col === col);
+            if (isNeutral) return null; // 中立棋子不计入任何玩家的连珠
+            return this.board[row][col];
+        }
+        const phantom = this.phantomStones.find(p => p.row === row && p.col === col);
+        return phantom ? phantom.player : null;
+    }
+
+    checkWin(row, col) {
+        const directions = [[[0, 1], [0, -1]], [[1, 0], [-1, 0]], [[1, 1], [-1, -1]], [[1, -1], [-1, 1]]];
+        const player = this.getPlayerAt(row, col);
+        if (!player) return false;
+        for (let dir of directions) {
+            let count = 1;
+            for (let [dr, dc] of dir) {
+                let r = row + dr, c = col + dc;
+                while (r >= 0 && r < 15 && c >= 0 && c < 15 && this.getPlayerAt(r, c) === player) {
+                    count++;
+                    r += dr;
+                    c += dc;
+                }
+            }
+            if (count >= 5) return true;
+        }
+        return false;
+    }
+    
+    checkFormLine(row, col, player, length) {
+        const directions = [[[0, 1], [0, -1]], [[1, 0], [-1, 0]], [[1, 1], [-1, -1]], [[1, -1], [-1, 1]]];
+        for (let dir of directions) {
+            let count = 1;
+            for (let [dr, dc] of dir) {
+                let r = row + dr, c = col + dc;
+                while (r >= 0 && r < 15 && c >= 0 && c < 15 && this.board[r][c] === player) {
+                    // 检查是否为中立棋子
+                    const isNeutral = this.neutralStones.some(s => s.row === r && s.col === c);
+                    if (isNeutral) break; // 中立棋子不计入连珠
+                    count++;
+                    r += dr;
+                    c += dc;
+                }
+            }
+            if (count >= length) return true;
+        }
+        return false;
+    }
+    
+    findLines(player, length) {
+        const lines = [];
+        for (let r = 0; r < 15; r++) {
+            for (let c = 0; c < 15; c++) {
+                if (this.checkFormLine(r, c, player, length)) lines.push({r, c});
+            }
+        }
+        return lines;
+    }
+    
+    findPlayerStone(player) {
+        for (let r = 0; r < 15; r++) for (let c = 0; c < 15; c++) if (this.board[r][c] === player) return {row: r, col: c};
+        return null;
+    }
+    
+    findKeyStone(player) {
+        let maxCount = 0, keyStone = null;
+        for (let r = 0; r < 15; r++) {
+            for (let c = 0; c < 15; c++) {
+                if (this.board[r][c] === player) {
+                    const count = this.countConnections(r, c, player);
+                    if (count > maxCount) { maxCount = count; keyStone = {row: r, col: c}; }
+                }
+            }
+        }
+        return keyStone;
+    }
+    
+    countConnections(row, col, player) {
+        const directions = [[[0, 1], [0, -1]], [[1, 0], [-1, 0]], [[1, 1], [-1, -1]], [[1, -1], [-1, 1]]];
+        let total = 0;
+        for (let dir of directions) {
+            let count = 1;
+            for (let [dr, dc] of dir) {
+                let r = row + dr, c = col + dc;
+                while (r >= 0 && r < 15 && c >= 0 && c < 15 && this.board[r][c] === player) {
+                    count++;
+                    r += dr;
+                    c += dc;
+                }
+            }
+            total += count;
+        }
+        return total;
+    }
+    
+    findFarthestEmpty(player) {
+        const myStone = this.findPlayerStone(player);
+        if (!myStone) return null;
+        let farDist = -1, farPos = null;
+        for (let r = 0; r < 15; r++) {
+            for (let c = 0; c < 15; c++) {
+                if (!this.board[r][c]) {
+                    const dist = Math.abs(r - myStone.row) + Math.abs(c - myStone.col);
+                    if (dist > farDist) { farDist = dist; farPos = {row: r, col: c}; }
+                }
+            }
+        }
+        return farPos;
+    }
+
+    findFarthestEmptyFromAll(player) {
+        // 找到距离己方所有棋子最远的空位
+        const myStones = [];
+        for (let r = 0; r < 15; r++) {
+            for (let c = 0; c < 15; c++) {
+                if (this.board[r][c] === player) myStones.push({row: r, col: c});
+            }
+        }
+        if (myStones.length === 0) return null;
+        let farDist = -1, farPos = null;
+        for (let r = 0; r < 15; r++) {
+            for (let c = 0; c < 15; c++) {
+                if (!this.board[r][c]) {
+                    // 计算到所有己方棋子的最小距离，然后取最大
+                    let minDistToAny = Infinity;
+                    for (let stone of myStones) {
+                        const dist = Math.abs(r - stone.row) + Math.abs(c - stone.col);
+                        if (dist < minDistToAny) minDistToAny = dist;
+                    }
+                    if (minDistToAny > farDist) { farDist = minDistToAny; farPos = {row: r, col: c}; }
+                }
+            }
+        }
+        return farPos;
+    }
+
+    checkLineCount(row, col, player) {
+        // 检查指定位置棋子参与的连线数量（2连及以上）
+        if (this.board[row][col] !== player) return 0;
+        const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
+        let maxLine = 0;
+        for (let [dr, dc] of directions) {
+            let count = 1;
+            // 正向
+            let r = row + dr, c = col + dc;
+            while (r >= 0 && r < 15 && c >= 0 && c < 15 && this.board[r][c] === player) {
+                count++; r += dr; c += dc;
+            }
+            // 反向
+            r = row - dr; c = col - dc;
+            while (r >= 0 && r < 15 && c >= 0 && c < 15 && this.board[r][c] === player) {
+                count++; r -= dr; c -= dc;
+            }
+            if (count > maxLine) maxLine = count;
+        }
+        return maxLine;
+    }
+
+    hasFourLine(player) {
+        // 检查玩家是否有四连
+        const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
+        for (let r = 0; r < 15; r++) {
+            for (let c = 0; c < 15; c++) {
+                if (this.board[r][c] !== player) continue;
+                for (let [dr, dc] of directions) {
+                    let count = 1;
+                    // 正向
+                    let row = r + dr, col = c + dc;
+                    while (row >= 0 && row < 15 && col >= 0 && col < 15 && this.board[row][col] === player) {
+                        count++; row += dr; col += dc;
+                    }
+                    // 反向
+                    row = r - dr; col = c - dc;
+                    while (row >= 0 && row < 15 && col >= 0 && col < 15 && this.board[row][col] === player) {
+                        count++; row -= dr; col -= dc;
+                    }
+                    if (count === 4) return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    isInFourLine(row, col, player) {
+        // 检查指定位置的棋子是否在四连中
+        if (this.board[row][col] !== player) return false;
+        const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
+        for (let [dr, dc] of directions) {
+            let count = 1;
+            // 正向
+            let r = row + dr, c = col + dc;
+            while (r >= 0 && r < 15 && c >= 0 && c < 15 && this.board[r][c] === player) {
+                count++; r += dr; c += dc;
+            }
+            // 反向
+            r = row - dr; c = col - dc;
+            while (r >= 0 && r < 15 && c >= 0 && c < 15 && this.board[r][c] === player) {
+                count++; r -= dr; c -= dc;
+            }
+            if (count === 4) return true;
+        }
+        return false;
+    }
+    
+    findFourLineEndpoint(player) {
+        // 找到玩家的四连线的空位端点（可以落子形成五连的位置）
+        const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
+        for (let r = 0; r < 15; r++) {
+            for (let c = 0; c < 15; c++) {
+                if (this.board[r][c] !== player) continue;
+                for (let [dr, dc] of directions) {
+                    let count = 1;
+                    let emptyEnd = null;
+                    // 正向检查
+                    let row = r + dr, col = c + dc;
+                    while (row >= 0 && row < 15 && col >= 0 && col < 15 && this.board[row][col] === player) {
+                        count++;
+                        row += dr;
+                        col += dc;
+                    }
+                    if (count === 4 && row >= 0 && row < 15 && col >= 0 && col < 15 && !this.board[row][col]) {
+                        emptyEnd = {row, col};
+                    }
+                    // 反向检查
+                    row = r - dr; col = c - dc;
+                    while (row >= 0 && row < 15 && col >= 0 && col < 15 && this.board[row][col] === player) {
+                        count++;
+                        row -= dr;
+                        col -= dc;
+                    }
+                    if (count >= 4) {
+                        if (!emptyEnd && row >= 0 && row < 15 && col >= 0 && col < 15 && !this.board[row][col]) {
+                            emptyEnd = {row, col};
+                        }
+                        if (emptyEnd) return emptyEnd;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+    
+    findFourLineStone(player) {
+        // 找到玩家四连线中的任意一个棋子（用于趁火打劫破坏）
+        const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
+        for (let r = 0; r < 15; r++) {
+            for (let c = 0; c < 15; c++) {
+                if (this.board[r][c] !== player) continue;
+                for (let [dr, dc] of directions) {
+                    let count = 1;
+                    const stones = [{row: r, col: c}];
+                    // 正向检查
+                    let row = r + dr, col = c + dc;
+                    while (row >= 0 && row < 15 && col >= 0 && col < 15 && this.board[row][col] === player) {
+                        count++;
+                        stones.push({row, col});
+                        row += dr;
+                        col += dc;
+                    }
+                    // 反向检查
+                    row = r - dr; col = c - dc;
+                    while (row >= 0 && row < 15 && col >= 0 && col < 15 && this.board[row][col] === player) {
+                        count++;
+                        stones.push({row, col});
+                        row -= dr;
+                        col -= dc;
+                    }
+                    if (count === 4 && stones.length > 0) {
+                        return stones[Math.floor(Math.random() * stones.length)];
+                    }
+                }
+            }
+        }
+        return null;
+    }
+    
+    findThreeLineEmpty(player) {
+        // 找到对方三连线的空位端点
+        const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
+        const emptyPoints = [];
+        for (let r = 0; r < 15; r++) {
+            for (let c = 0; c < 15; c++) {
+                if (this.board[r][c] !== player) continue;
+                for (let [dr, dc] of directions) {
+                    let count = 1;
+                    let forwardEmpty = null, backwardEmpty = null;
+                    // 正向
+                    let row = r + dr, col = c + dc;
+                    while (row >= 0 && row < 15 && col >= 0 && col < 15 && this.board[row][col] === player) {
+                        count++;
+                        row += dr;
+                        col += dc;
+                    }
+                    if (row >= 0 && row < 15 && col >= 0 && col < 15 && !this.board[row][col]) {
+                        forwardEmpty = {row, col};
+                    }
+                    // 反向
+                    row = r - dr; col = c - dc;
+                    while (row >= 0 && row < 15 && col >= 0 && col < 15 && this.board[row][col] === player) {
+                        count++;
+                        row -= dr;
+                        col -= dc;
+                    }
+                    if (row >= 0 && row < 15 && col >= 0 && col < 15 && !this.board[row][col]) {
+                        backwardEmpty = {row, col};
+                    }
+                    // 如果是三连，加入空位
+                    if (count === 3) {
+                        if (forwardEmpty) emptyPoints.push(forwardEmpty);
+                        if (backwardEmpty) emptyPoints.push(backwardEmpty);
+                    }
+                }
+            }
+        }
+        return emptyPoints;
+    }
+    
+    checkBlockLine(row, col, opponent) {
+        // 检查在(row,col)落子是否阻断了opponent的连线
+        // 检查四个方向：如果在落子位置两侧有对方棋子，且这方向原本有3连或4连，则认为阻断
+        const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
+        for (let [dr, dc] of directions) {
+            let forwardCount = 0, backwardCount = 0;
+            // 正向检查
+            let r = row + dr, c = col + dc;
+            while (r >= 0 && r < 15 && c >= 0 && c < 15 && this.board[r][c] === opponent) {
+                forwardCount++; r += dr; c += dc;
+            }
+            // 反向检查
+            r = row - dr; c = col - dc;
+            while (r >= 0 && r < 15 && c >= 0 && c < 15 && this.board[r][c] === opponent) {
+                backwardCount++; r -= dr; c -= dc;
+            }
+            // 如果两侧合计有3连或4连，则认为阻断成功
+            if (forwardCount + backwardCount >= 3) {
+                // 返回被阻断连线中的一个棋子位置（用于原版本的移除效果）
+                // 新版本不需要移除，只需要判断是否阻断
+                return true;
+            }
+        }
+        return null;
+    }
+
+    undo() {
+        if (this.moveHistory.length === 0 || this.gameOver) return;
+        const lastMove = this.moveHistory.pop();
+        this.board[lastMove.row][lastMove.col] = null;
+        this.playerEnergy[lastMove.player] = Math.max(this.playerEnergy[lastMove.player] - this.energyPerMove, 0);
+        this.currentPlayer = lastMove.player;
+        this.gameOver = false;
+        this.usedSkillThisTurn = false;
+        this.hasPlacedThisTurn = false;
+        this.renderBoard();
+        this.updatePlayerIndicator();
+        this.updateEnergyUI();
+        this.renderSkills();
+        this.updateStatus(`${this.currentPlayer === 'black' ? '黑方' : '白方'}回合<br><small>可直接落子或使用技能</small><br>悔棋成功`);
+    }
+
+    restart() {
+        const skillCount = Math.floor(Math.random() * 5) + 6;
+        this.board = Array(15).fill(null).map(() => Array(15).fill(null));
+        this.currentPlayer = 'black';
+        this.moveHistory = [];
+        this.gameOver = false;
+        this.hasPlacedThisTurn = false;
+        this.usedSkillThisTurn = false;
+        this.extraMoves = 0;
+        this.extraMoveOwner = null;
+        this.frozenCells.clear();
+        this.protectedStones.clear();
+        this.phantomStones = [];
+        this.hiddenMoves = [];
+        this.disguisedStones = [];
+        this.soundEastState = null;
+        this.cannotWinThisTurn = false;
+        this.activeSkill = null;
+        this.pendingSkillEffect = null;
+        this.skillSeal = null;
+        this.forcedDefense = null;
+        this.forcedPlacement = null;
+        this.feintArea = null;
+        this.lockedArea = null;
+        this.emptyCityArea = null;
+        this.baitMove = null;
+        this.threatMark = null;
+        this.confusion = null;
+        this.immuneStones = null;
+        this.doubleSkill = null;
+        this.stealTurn = null;
+        this.skipTurn = false;
+        this.bonusEnergyNextTurn = null;
+        this.lastUsedSkill = { black: null, white: null };
+        // 新技能状态（混战计、并战计、败战计）
+        this.restrictedArea = null;
+        this.isolatedStoneBonus = null;
+        this.permanentImmune = null;
+        this.energyPenaltyNextTurn = null;
+        this.beautyTrap = null; // 美人计：旧版本陷阱（已废弃）
+        this.beautyTrapPending = null; // 美人计：下一颗落子触发效果
+        this.neutralStones = []; // 中立棋子（不计入连珠）
+        this.forbiddenArea = null;
+        this.weakenedStones = new Set();
+        this.immunePlayer = null;
+        this.playerEnergy = { black: 0, white: 0 };
+        this.currentSkillPool = this.skillManager.setRandomSharedSkills(skillCount);
+        this.initBoard();
+        this.renderSkills();
+        this.updatePlayerIndicator();
+        this.updateEnergyUI();
+        this.updateSkillPoolInfo(skillCount);
+        this.updateStatus('黑方回合<br><small>可直接落子或使用技能</small>');
+        document.getElementById('modal').classList.remove('show');
+    }
+
+    rematch() {
+        // 重玩：保持当前技能池，重置游戏状态
+        const currentSkills = this.skillManager.getSharedSkills();
+        const skillCount = currentSkills.length;
+
+        this.board = Array(15).fill(null).map(() => Array(15).fill(null));
+        this.currentPlayer = 'black';
+        this.moveHistory = [];
+        this.gameOver = false;
+        this.hasPlacedThisTurn = false;
+        this.usedSkillThisTurn = false;
+        this.extraMoves = 0;
+        this.extraMoveOwner = null;
+        this.frozenCells.clear();
+        this.protectedStones.clear();
+        this.phantomStones = [];
+        this.hiddenMoves = [];
+        this.activeSkill = null;
+        this.pendingSkillEffect = null;
+        this.skillSeal = null;
+        this.forcedDefense = null;
+        this.forcedPlacement = null;
+        this.feintArea = null;
+        this.lockedArea = null;
+        this.emptyCityArea = null;
+        this.baitMove = null;
+        this.threatMark = null;
+        this.confusion = null;
+        this.immuneStones = null;
+        this.doubleSkill = null;
+        this.stealTurn = null;
+        this.skipTurn = false;
+        this.bonusEnergyNextTurn = null;
+        this.lastUsedSkill = { black: null, white: null };
+        // 新技能状态（混战计、并战计、败战计）
+        this.restrictedArea = null;
+        this.isolatedStoneBonus = null;
+        this.permanentImmune = null;
+        this.energyPenaltyNextTurn = null;
+        this.beautyTrap = null; // 美人计：旧版本陷阱（已废弃）
+        this.beautyTrapPending = null; // 美人计：下一颗落子触发效果
+        this.neutralStones = []; // 中立棋子（不计入连珠）
+        this.forbiddenArea = null;
+        this.weakenedStones = new Set();
+        this.immunePlayer = null;
+        this.playerEnergy = { black: 0, white: 0 };
+        // 重置技能冷却但不更换技能
+        this.skillManager.resetAll();
+        this.initBoard();
+        this.renderSkills();
+        this.updatePlayerIndicator();
+        this.updateEnergyUI();
+        this.updateStatus(`黑方回合<br><small>可直接落子或使用技能</small><br><small>🎯 重玩模式 - 相同技能组</small>`);
+        document.getElementById('modal').classList.remove('show');
+    }
+
+    toggleTestMode() {
+        const currentMode = this.skillManager.isTestMode();
+        const newMode = !currentMode;
+        this.skillManager.setTestMode(newMode);
+
+        // 重置游戏
+        this.board = Array(15).fill(null).map(() => Array(15).fill(null));
+        this.currentPlayer = 'black';
+        this.moveHistory = [];
+        this.gameOver = false;
+        this.hasPlacedThisTurn = false;
+        this.usedSkillThisTurn = false;
+        this.extraMoves = 0;
+        this.extraMoveOwner = null;
+        this.frozenCells.clear();
+        this.protectedStones.clear();
+        this.phantomStones = [];
+        this.hiddenMoves = [];
+        this.activeSkill = null;
+        this.pendingSkillEffect = null;
+        this.skillSeal = null;
+        this.forcedDefense = null;
+        this.forcedPlacement = null;
+        this.feintArea = null;
+        this.lockedArea = null;
+        this.emptyCityArea = null;
+        this.baitMove = null;
+        this.threatMark = null;
+        this.confusion = null;
+        this.immuneStones = null;
+        this.doubleSkill = null;
+        this.stealTurn = null;
+        this.skipTurn = false;
+        this.bonusEnergyNextTurn = null;
+        this.lastUsedSkill = { black: null, white: null };
+        // 新技能状态（混战计、并战计、败战计）
+        this.restrictedArea = null;
+        this.isolatedStoneBonus = null;
+        this.permanentImmune = null;
+        this.energyPenaltyNextTurn = null;
+        this.beautyTrap = null; // 美人计：旧版本陷阱（已废弃）
+        this.beautyTrapPending = null; // 美人计：下一颗落子触发效果
+        this.neutralStones = []; // 中立棋子（不计入连珠）
+        this.forbiddenArea = null;
+        this.weakenedStones = new Set();
+        this.immunePlayer = null;
+        this.playerEnergy = { black: 0, white: 0 };
+
+        // 测试模式：所有技能 + 满能量
+        if (newMode) {
+            this.currentSkillPool = this.skillManager.setAllSkills();
+            this.playerEnergy = { black: 999, white: 999 };
+            this.maxEnergy = 999;
+        } else {
+            const skillCount = Math.floor(Math.random() * 5) + 6;
+            this.currentSkillPool = this.skillManager.setRandomSharedSkills(skillCount);
+            this.maxEnergy = 10;
+        }
+
+        this.initBoard();
+        this.renderSkills();
+        this.updatePlayerIndicator();
+        this.updateEnergyUI();
+        this.updateSkillPoolInfo(this.currentSkillPool.length);
+        this.updateTestModeButton();
+
+        if (newMode) {
+            this.updateStatus('🧪 测试模式已开启<br><small>所有技能可用，能量无限</small>');
+        } else {
+            this.updateStatus('黑方回合<br><small>可直接落子或使用技能</small>');
+        }
+    }
+
+    updateTestModeButton() {
+        const btn = document.getElementById('test-mode-btn');
+        if (btn) {
+            if (this.skillManager.isTestMode()) {
+                btn.textContent = '🧪 关闭测试模式';
+                btn.classList.add('btn-primary');
+                btn.classList.remove('btn-secondary');
+            } else {
+                btn.textContent = '🧪 开启测试模式';
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-secondary');
+            }
+        }
+    }
+
+    renderBoard() {
+        const cells = document.querySelectorAll('.cell');
+        cells.forEach(cell => {
+            const row = parseInt(cell.dataset.row);
+            const col = parseInt(cell.dataset.col);
+            const stone = this.board[row][col];
+            const oldStone = cell.querySelector('.stone');
+            if (oldStone) oldStone.remove();
+
+            // 清除之前的高亮样式
+            cell.classList.remove('must-place', 'forbidden-place', 'suggested-place');
+
+            // 检查是否为隐藏落子
+            const hidden = this.hiddenMoves.some(h => h.row === row && h.col === col);
+
+            // 检查是否为伪装棋子（暗度陈仓）
+            const disguised = this.disguisedStones && this.disguisedStones.find(d => d.row === row && d.col === col);
+
+            // 检查是否为幻想子（无中生有）
+            const phantom = this.phantomStones.find(p => p.row === row && p.col === col);
+
+            // ========== 高亮限制落子位置 ==========
+            // 围魏救赵：必须落子位置
+            if (this.forcedDefense && this.forcedDefense.player === this.currentPlayer && this.forcedDefense.type !== 'neighbor') {
+                const isValid = this.forcedDefense.positions.some(p => p.row === row && p.col === col);
+                if (isValid) {
+                    cell.classList.add('must-place');
+                } else if (!stone && !phantom) {
+                    cell.classList.add('forbidden-place');
+                }
+            }
+            // 抛砖引玉：必须在落子旁边
+            if (this.forcedDefense && this.forcedDefense.player === this.currentPlayer && this.forcedDefense.type === 'neighbor') {
+                const isValid = this.forcedDefense.positions.some(p => p.row === row && p.col === col);
+                if (isValid) {
+                    cell.classList.add('must-place');
+                } else if (!stone && !phantom) {
+                    cell.classList.add('forbidden-place');
+                }
+            }
+            // 欲擒故纵：必须落子位置
+            if (this.forcedPlacement && this.forcedPlacement.player === this.currentPlayer && this.forcedPlacement.type === 'restricted') {
+                const isValid = this.forcedPlacement.positions.some(p => p.row === row && p.col === col);
+                if (isValid) {
+                    cell.classList.add('must-place');
+                } else if (!stone && !phantom) {
+                    cell.classList.add('forbidden-place');
+                }
+            }
+            // 关门捉贼：限制区域
+            if (this.restrictedArea && this.restrictedArea.player === this.currentPlayer) {
+                const inArea = this.restrictedArea.area.some(p => p.row === row && p.col === col);
+                if (inArea) {
+                    cell.classList.add('must-place');
+                } else if (!stone && !phantom) {
+                    cell.classList.add('forbidden-place');
+                }
+            }
+            // 空城计：禁止区域
+            if (this.forbiddenArea && this.forbiddenArea.area.some(p => p.row === row && p.col === col)) {
+                cell.classList.add('forbidden-place');
+            }
+            // 封锁区域限制
+            if (this.lockedArea && this.lockedArea.turns > 0) {
+                const inArea = Math.abs(row - this.lockedArea.row) <= this.lockedArea.range &&
+                              Math.abs(col - this.lockedArea.col) <= this.lockedArea.range;
+                if (!inArea && !stone && !phantom) {
+                    cell.classList.add('forbidden-place');
+                } else if (inArea && !stone && !phantom) {
+                    cell.classList.add('must-place');
+                }
+            }
+
+            // ========== 高亮pending技能的可落子位置 ==========
+            if (this.pendingSkillEffect) {
+                const effect = this.pendingSkillEffect;
+
+                // 浑水摸鱼：只能移动到相邻空位
+                if (effect.type === 'moveStone') {
+                    const dr = Math.abs(row - effect.origin.row);
+                    const dc = Math.abs(col - effect.origin.col);
+                    const isAdjacent = dr + dc === 1;
+                    const isEmpty = !stone && !phantom;
+                    if (isAdjacent && isEmpty) {
+                        cell.classList.add('must-place');
+                    } else if (!isAdjacent && isEmpty) {
+                        cell.classList.add('forbidden-place');
+                    }
+                }
+
+                // 金蝉脱壳：可以移动到任意空位
+                if (effect.type === 'teleportStone') {
+                    if (!stone && !phantom) {
+                        cell.classList.add('must-place');
+                    }
+                }
+
+                // 上屋抽梯：只能移动到相邻空位
+                if (effect.type === 'displaceStone') {
+                    const dr = Math.abs(row - effect.origin.row);
+                    const dc = Math.abs(col - effect.origin.col);
+                    const isAdjacent = dr + dc === 1;
+                    const isEmpty = !stone && !phantom;
+                    if (isAdjacent && isEmpty) {
+                        cell.classList.add('must-place');
+                    } else if (!isAdjacent && isEmpty) {
+                        cell.classList.add('forbidden-place');
+                    }
+                }
+
+                // 走为上策：可以移动到任意空位
+                if (effect.type === 'retreatStone') {
+                    if (!stone && !phantom) {
+                        cell.classList.add('must-place');
+                    }
+                }
+
+                // 远交近攻：可以选择删除对方棋子
+                if (effect.type === 'removeOpponentStone') {
+                    const opponent = this.getOpponent(this.currentPlayer);
+                    if (stone === opponent) {
+                        cell.classList.add('must-place');
+                    }
+                }
+            }
+
+            // 渲染棋子（包括幻想子）
+            if ((stone && !hidden) || phantom) {
+                const stoneEl = document.createElement('div');
+                // 幻想子使用 phantom.player，否则使用 board 上的 stone
+                const actualStone = phantom ? phantom.player : stone;
+                // 如果有伪装，显示为伪装颜色，否则显示实际颜色
+                const displayColor = disguised ? disguised.displayPlayer : actualStone;
+                stoneEl.className = `stone ${displayColor}`;
+
+                // 如果是伪装，添加标记
+                if (disguised) {
+                    stoneEl.style.border = '2px dashed #ffd700';
+                    stoneEl.title = '暗度陈仓：实际为' + (disguised.actualPlayer === 'black' ? '黑方' : '白方');
+                }
+
+                // 检查是否为中立棋子
+                const isNeutral = this.neutralStones.some(s => s.row === row && s.col === col);
+                if (isNeutral) {
+                    stoneEl.style.border = '3px solid #888';
+                    stoneEl.style.opacity = '0.6';
+                    stoneEl.title = '中立棋子：不计入连珠';
+                }
+
+                const lastMove = this.moveHistory[this.moveHistory.length - 1];
+                if (lastMove && lastMove.row === row && lastMove.col === col) stoneEl.classList.add('last-move');
+
+                // 幻想子特殊样式
+                if (phantom) {
+                    stoneEl.classList.add('phantom');
+                    stoneEl.title = '幻想子（' + (phantom.player === 'black' ? '黑方' : '白方') + '）剩余' + phantom.turns + '回合';
+                }
+
+                cell.appendChild(stoneEl);
+            }
+        });
+    }
+
+    renderSkills() {
+        const container = document.getElementById('skills-list');
+        container.innerHTML = '';
+        const skills = this.skillManager.getSharedSkills();
+        const currentEnergy = this.getPlayerEnergy(this.currentPlayer);
+        const isTestMode = this.skillManager.isTestMode();
+
+        let lastCategory = '';
+        skills.forEach(skill => {
+            if (skill.category !== lastCategory) {
+                const cat = document.createElement('div');
+                cat.className = 'skill-category';
+                cat.textContent = skill.category;
+                container.appendChild(cat);
+                lastCategory = skill.category;
+            }
+
+            const item = document.createElement('div');
+            item.className = 'skill-item';
+            if (skill === this.activeSkill) item.classList.add('active');
+            // 测试模式下不显示冷却
+            if (!isTestMode && skill.currentCooldown > 0) {
+                item.classList.add('cooldown');
+                item.dataset.cooldown = skill.currentCooldown;
+            } else if (!isTestMode && currentEnergy < skill.cost) {
+                item.classList.add('insufficient');
+            }
+            const cdText = (!isTestMode && skill.currentCooldown > 0) ? ` [CD:${skill.currentCooldown}]` : '';
+            item.innerHTML = `
+                <div class="skill-cost">${skill.cost} 能量</div>
+                <div class="skill-name">${skill.icon} ${skill.name}${cdText}</div>
+                <div class="skill-desc">${skill.description}</div>
+            `;
+            item.addEventListener('click', () => this.activateSkill(skill));
+            container.appendChild(item);
+        });
+    }
+
+    activateSkill(skill) {
+        const isTestMode = this.skillManager.isTestMode();
+
+        // 检查技能封印（测试模式下也检查封印）
+        if (this.skillSeal && this.skillSeal.player === this.currentPlayer) {
+            if (this.skillSeal.nextTurnOnly || this.skillSeal.turns > 0) {
+                const sealSource = this.skillSeal.sourceSkill || '未知技能';
+                this.updateStatus(`❌ 技能被封印！<br>⚠️ ${sealSource}效果`);
+                return;
+            }
+        }
+
+        if (!isTestMode && this.getPlayerEnergy(this.currentPlayer) < skill.cost) {
+            this.updateStatus(`能量不足！需要 ${skill.cost} 点能量<br>当前: ${this.getPlayerEnergy(this.currentPlayer)} / ${this.maxEnergy}`);
+            return;
+        }
+        if (!isTestMode && skill.currentCooldown > 0) {
+            this.updateStatus(`技能冷却中...还需 ${skill.currentCooldown} 回合<br>⚠️ 公用CD，双方都无法使用`);
+            return;
+        }
+        // 检查技能的canUse条件（如李代桃僵需要对方有四连）
+        if (!skill.canUse(this, this.currentPlayer)) {
+            this.updateStatus(`❌ 技能条件不满足<br>⚠️ ${skill.name}无法使用`);
+            return;
+        }
+        if (this.activeSkill === skill) {
+            this.activeSkill = null;
+            this.updateStatus('取消技能');
+        } else {
+            this.activeSkill = skill;
+            this.updateStatus(`已激活: ${skill.name}<br>⚠️ 点击棋盘使用技能，使用后需落子`);
+        }
+        this.renderSkills();
+    }
+
+    showEffect(row, col, text) {
+        const layer = document.getElementById('effect-layer');
+        const effect = document.createElement('div');
+        effect.className = 'effect-text';
+        effect.textContent = text;
+        effect.style.left = `${col * 36 + 18}px`;
+        effect.style.top = `${row * 36}px`;
+        layer.appendChild(effect);
+        setTimeout(() => effect.remove(), 2000);
+    }
+
+    getCellElement(row, col) {
+        return document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+    }
+
+    updatePlayerIndicator() {
+        document.getElementById('black-player').classList.toggle('active', this.currentPlayer === 'black');
+        document.getElementById('white-player').classList.toggle('active', this.currentPlayer === 'white');
+    }
+
+    updateStatus(text) {
+        document.getElementById('game-status').innerHTML = text;
+    }
+
+    showWinModal() {
+        const winner = this.currentPlayer === 'black' ? '黑方' : '白方';
+        document.getElementById('modal-title').textContent = `🎉 ${winner}获胜！`;
+        document.getElementById('modal-message').textContent = `恭喜${winner}赢得比赛！`;
+        const skillsDiv = document.getElementById('modal-skills');
+        skillsDiv.innerHTML = '<div style="margin:10px 0;">本局技能池:</div>' + 
+            this.currentSkillPool.map(s => `<span class="skill-tag">${s.icon} ${s.name}</span>`).join('');
+        document.getElementById('modal').classList.add('show');
+    }
+
+    showDrawModal() {
+        document.getElementById('modal-title').textContent = '🤝 平局！';
+        document.getElementById('modal-message').textContent = '棋盘已满，双方平局！';
+        document.getElementById('modal').classList.add('show');
+    }
+
+    // ==================== AI相关方法 ====================
+
+    /**
+     * 创建AI实例
+     */
+    createAIInstance() {
+        this.aiInstance = new GomokuAI(this, this.aiPlayer, this.aiDifficulty);
+    }
+
+    /**
+     * 切换AI模式
+     */
+    toggleAIMode() {
+        this.aiEnabled = !this.aiEnabled;
+
+        const btn = document.getElementById('ai-mode-btn');
+        const typeNames = { 'basic': '基础', 'enhanced': '增强' };
+        const difficultyNames = {
+            'easy': '简单',
+            'medium': '中等',
+            'hard': '困难',
+            'expert': '专家'
+        };
+
+        if (this.aiEnabled) {
+            btn.textContent = `🤖 AI: 开启 (${typeNames[this.aiType]}/${difficultyNames[this.aiDifficulty]})`;
+            btn.classList.add('btn-primary');
+            btn.classList.remove('btn-secondary');
+            this.updateStatus(`🤖 AI对战已开启<br>AI执白，玩家执黑<br>类型: ${typeNames[this.aiType]} | 难度: ${difficultyNames[this.aiDifficulty]}`);
+
+            // 创建AI实例
+            this.createAIInstance();
+
+            // 如果当前是AI回合，触发AI行动
+            if (this.currentPlayer === this.aiPlayer && !this.gameOver) {
+                setTimeout(() => this.triggerAIAction(), 500);
+            }
+        } else {
+            btn.textContent = '🤖 AI对战: 关闭';
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-secondary');
+            this.updateStatus('🤖 AI对战已关闭<br>当前为双人对战模式');
+            this.aiInstance = null;
+        }
+    }
+
+    /**
+     * 切换AI难度（循环切换）
+     */
+    setAIDifficulty(difficulty) {
+        // 如果没有指定难度，则循环切换
+        if (!difficulty) {
+            const difficulties = ['easy', 'medium', 'hard'];
+            const currentIndex = difficulties.indexOf(this.aiDifficulty);
+            const nextIndex = (currentIndex + 1) % difficulties.length;
+            difficulty = difficulties[nextIndex];
+        }
+
+        this.aiDifficulty = difficulty;
+
+        // 更新按钮文本
+        const btn = document.getElementById('ai-difficulty-btn');
+        const difficultyNames = {
+            'easy': '简单',
+            'medium': '中等',
+            'hard': '困难',
+            'expert': '专家'
+        };
+        btn.textContent = `🎮 难度: ${difficultyNames[difficulty]}`;
+
+        // 更新AI实例
+        if (this.aiEnabled && this.aiInstance) {
+            this.createAIInstance();
+        }
+
+        // 更新AI模式按钮文本
+        if (this.aiEnabled) {
+            const typeNames = { 'basic': '基础', 'enhanced': '增强' };
+            const aiBtn = document.getElementById('ai-mode-btn');
+            aiBtn.textContent = `🤖 AI: 开启 (${typeNames[this.aiType]}/${difficultyNames[difficulty]})`;
+        }
+
+        this.updateStatus(`AI难度已设置为: ${difficultyNames[difficulty]}`);
+    }
+
+    /**
+     * 切换AI难度（供按钮调用）
+     */
+    cycleAIDifficulty() {
+        this.setAIDifficulty();
+    }
+
+    /**
+     * 切换AI难度（循环切换）
+     */
+
+    /**
+     * 触发AI行动
+     */
+    triggerAIAction() {
+        console.log('[Game] triggerAIAction called', {
+            aiEnabled: this.aiEnabled,
+            aiInstance: this.aiInstance,
+            gameOver: this.gameOver,
+            currentPlayer: this.currentPlayer,
+            aiPlayer: this.aiPlayer
+        });
+
+        if (!this.aiEnabled || !this.aiInstance || this.gameOver) return;
+        if (this.currentPlayer !== this.aiPlayer) return;
+
+        console.log('[Game] All checks passed, executing AI decision');
+        // 执行AI决策
+        this.aiInstance.executeDecision();
+    }
+}
+
+const game = new GomokuGame();
+    </script>
+<!-- 原始AI系统 - 必须先加载，因为增强版继承自它 -->
+<script src="js/core/gomoku_ai.js"></script>
+</body>
+</html>

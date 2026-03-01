@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI对战测试系统</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            color: #fff;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 900px;
+            width: 100%;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            background: linear-gradient(90deg, #ffd700, #ff6b6b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .test-config {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .config-group {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            border-radius: 10px;
+        }
+        .config-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #ffd700;
+            font-size: 14px;
+        }
+        .config-group select, .config-group input {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 14px;
+        }
+        .config-group select:focus, .config-group input:focus {
+            outline: 2px solid #ffd700;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #e94560, #ff6b6b);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(233, 69, 96, 0.4);
+        }
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .test-controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .progress-container {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ffd700, #ff6b6b);
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            color: #000;
+        }
+        .progress-text {
+            text-align: center;
+            font-size: 14px;
+            color: #aaa;
+        }
+        .results-container {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .results-table th, .results-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .results-table th {
+            color: #ffd700;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            background: rgba(0, 0, 0, 0.5);
+        }
+        .results-table tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .win-black { color: #88cc88; }
+        .win-white { color: #ff8888; }
+        .win-draw { color: #aaaa88; }
+        .stats-panel {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .stat-card .label {
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 5px;
+        }
+        .stat-card .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #ffd700;
+        }
+        .log-container {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            color: #aaa;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 5px;
+            border-left: 2px solid #ffd700;
+            padding-left: 10px;
+        }
+        @media (max-width: 600px) {
+            .test-config { grid-template-columns: 1fr; }
+            .stats-panel { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 AI对战测试系统</h1>
+
+        <div class="test-config">
+            <div class="config-group">
+                <label>黑方AI难度</label>
+                <select id="black-difficulty">
+                    <option value="easy">简单</option>
+                    <option value="medium">中等</option>
+                    <option value="hard">困难</option>
+                </select>
+            </div>
+            <div class="config-group">
+                <label>白方AI难度</label>
+                <select id="white-difficulty">
+                    <option value="easy">简单</option>
+                    <option value="medium">中等</option>
+                    <option value="hard">困难</option>
+                </select>
+            </div>
+            <div class="config-group">
+                <label>对局数量</label>
+                <input type="number" id="game-count" value="10" min="1" max="100">
+            </div>
+            <div class="config-group">
+                <label>测试模式</label>
+                <select id="test-mode">
+                    <option value="standard">标准模式</option>
+                    <option value="tournament">循环赛</option>
+                    <option value="ladder">阶梯赛</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="test-controls">
+            <button class="btn btn-primary" id="start-btn" onclick="startTest()">▶️ 开始测试</button>
+            <button class="btn btn-secondary" id="stop-btn" onclick="stopTest()" disabled>⏹️ 停止测试</button>
+            <button class="btn btn-secondary" onclick="exportResults()">📊 导出结果</button>
+            <button class="btn btn-secondary" onclick="clearResults()">🗑️ 清除结果</button>
+        </div>
+
+        <div class="stats-panel" id="stats-panel" style="display: none;">
+            <div class="stat-card">
+                <div class="label">总对局</div>
+                <div class="value" id="stat-total">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">黑方胜</div>
+                <div class="value" id="stat-black">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">白方胜</div>
+                <div class="value" id="stat-white">0</div>
+            </div>
+div>
+            <div class="stat-card">
+                <div class="label">平局</div>
+                <div class="value" id="stat-draw">0</div>
+            </div>
+        </div>
+
+        <div class="progress-container" id="progress-container" style="display: none;">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill" style="width: 0%">0%</div>
+            </div>
+            <div class="progress-text" id="progress-text">准备开始...</div>
+        </div>
+
+        <div class="results-container" id="results-container" style="display: none;">
+            <h3 style="color: #ffd700; margin-bottom: 15px; text-align: center;">📊 对战结果</h3>
+            <table class="results-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>黑方</th>
+                        <th>白方</th>
+th>结果</th>
+                        <th>回合数</th>
+                        <th>用时</th>
+                    </tr>
+                </thead>
+                <tbody id="results-body">
+                </tbody>
+            </table>
+        </div>
+
+        <div class="log-container" id="log-container" style="display: none;">
+            <h4 style="color: #ffd700; margin-bottom: 10px;">📝 测试日志</h4>
+            <div id="log-content"></div>
+        </div>
+    </div>
+
+    <!-- 隐藏的iframe用于加载游戏 -->
+    <iframe id="game-frame" style="display:none;" src="gomoku.html"></iframe>
+
+    <script>
+        // ==================== 测试系统配置 ====================
+        const TestConfig = {
+            targetWinRates: {
+                'same': 0.5,      // 同等级：0.5
+                'oneLevelDiff': 0.7  // 差一级：0.7
+            },
+            maxTestTime: 300000,  // 5分钟超时
+            turnTimeout: 30000     // 30秒每回合超时
+        };
+
+        // ==================== 测试状态 ====================
+        const testState = {
+            isRunning: false,
+            currentGame: 0,
+            totalGames: 0,
+            results: [],
+            blackDifficulty: 'easy',
+            whiteDifficulty: 'easy',
+            gameCount: 10,
+            testMode: 'standard',
+            startTime: null,
+            stats: {
+                black: 0,
+                white: 0,
+                draw: 0
+            }
+        };
+
+        // ==================== 隐藏游戏框架 ====================
+        class HiddenGameManager {
+            constructor() {
+                this.frame = document.getElementById('game-frame');
+                this.game = null;
+                this.gameWindow = null;
+                this.initPromise = new Promise((resolve, reject) => {
+                    this.initResolve = resolve;
+                    this.initReject = reject;
+                });
+
+                this.frame.onload = () => {
+                    try {
+                        this.gameWindow = this.frame.contentWindow;
+                        this.game = this.gameWindow.game;
+
+                        if (this.game) {
+                            this.initResolve();
+                        } else {
+                            this.initReject(new Error('Game not found'));
+                        }
+                    } catch (e) {
+                        this.initReject(e);
+                    }
+                };
+
+                this.frame.onerror = () => {
+                    this.initReject(new Error('Failed to load game'));
+                };
+            }
+
+            async waitReady() {
+                return this.initPromise;
+            }
+
+            // 获取游戏实例
+            getGame() {
+                return this.game;
+            }
+
+            // 重置游戏
+            async resetGame() {
+                if (this.game && this.game.restart) {
+                    this.game.restart();
+                    await this.delay(500);
+                }
+            }
+
+            // 设置AI模式
+            setAIEnabled(enabled) {
+                if (this.game && this.game.toggleAIMode) {
+                    if (this.game.aiEnabled !== enabled) {
+                        this.game.toggleAIMode();
+                    }
+                }
+            }
+
+            // 设置AI难度
+            setAIDifficulty(difficulty) {
+                if (this.game && this.game.setAIDifficulty) {
+                    this.game.setAIDifficulty(difficulty);
+                }
+            }
+
+            // 延迟
+            delay(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            }
+
+            // 获取游戏状态
+            getGameState() {
+                if (!this.game) return null;
+                return {
+                    gameOver: this.game.gameOver,
+                    currentPlayer: this.game.currentPlayer,
+                    moveHistory: this.game.moveHistory ? this.game.moveHistory.length : 0
+                };
+            }
+
+            // 执行落子
+            async makeMove(row, col) {
+                if (this.game && this.game.handleCellClick) {
+                    this.game.handleCellClick(row, col);
+                    await this.delay(100);
+                }
+            }
+
+            // 悔棋
+            async undo() {
+                if (this.game && this.game.undo) {
+                    this.game.undo();
+                    await this.delay(500);
+                    this.game.undo();
+                    await this.delay(500);
+                }
+            }
+        }
+
+        // ==================== AI对战测试类 ====================
+        class AITestRunner {
+            constructor(hiddenGameManager) {
+                this.hgm = hiddenGameManager;
+                this.testCallback = null;
+            }
+
+            // 运行单场对战测试
+            async runSingleTest(blackDiff, whiteDiff, testIndex) {
+                const game = this.hgm.getGame();
+                const startTime = Date.now();
+                const result = {
+                    index: testIndex,
+                    black: blackDiff,
+                    white: whiteDiff,
+                    winner: null,
+                    turns: 0,
+                    duration: 0,
+                    error: null
+                };
+
+                try {
+                    // 重置游戏
+                    await this.hgm.resetGame();
+
+                    // 设置AI模式
+                    this.hgm.setAIEnabled(false); // 先关闭
+
+                    // 创建AI实例
+                    game.aiEnabled = true;
+                    game.aiPlayer = 'white'; // AI执白
+                    game.aiInstance = new game.GomokuAI(game, 'white', whiteDiff);
+
+                    // 黑方AI（先手）
+                    const blackAI = new game.GomokuAI(game, 'black', blackDiff);
+
+                    // 游戏循环
+                    let turnCount = 0;
+                    const maxTurns = 225; // 15×15最大回合数
+
+                    while (!game.gameOver && turnCount < maxTurns) {
+                        const currentPlayer = game.currentPlayer;
+
+                        if (currentPlayer === 'black') {
+                            // 黑方AI行动
+                            await this.executeAIMove(blackAI, 'black');
+                        } else {
+                            // 白方AI行动
+                            await this.executeAIMove(game.aiInstance, 'white');
+                        }
+
+                        turnCount++;
+
+                        // 检查超时
+                        if (Date.now() - startTime > TestConfig.turnTimeout) {
+                            result.error = 'timeout';
+                            break;
+                        }
+
+                        await this.hgm.delay(200);
+                    }
+
+                    // 记录结果
+                    result.turns = turnCount;
+                    result.duration = Date.now() - startTime;
+
+                    if (game.gameOver) {
+                        const winner = game.currentPlayer === 'black' ? 'white' : 'black';
+                        result.winner = winner;
+                    } else if (result.error === 'timeout') {
+                        // 超时，计算谁优势
+                        result.winner = this.determineWinnerByPosition();
+                    } else {
+                        result.winner = 'draw';
+                    }
+
+                } catch (e) {
+                    result.error = e.message;
+                    result.winner = 'error';
+                }
+
+                return result;
+            }
+
+            // 执行AI行动
+            async executeAIMove(ai, player) {
+                const game = this.hgm.getGame();
+                const decision = ai.makeDecision();
+
+                if (decision.action === 'place') {
+                    await this.hgm.makeMove(decision.row, decision.col);
+                } else if (decision.action === 'skill') {
+                    // 激活技能
+                    game.activeSkill = game.currentSkillPool.find(s => s.id === decision.skillId);
+                    if (decision.target) {
+                        await this.hgm.makeMove(decision.target.row, decision.target.col);
+                    }
+                } else if (decision.action === 'skip') {
+                    game.switchPlayer();
+                }
+
+                await this.hgm.delay(100);
+            }
+
+            // 通过盘面判断优势方
+            determineWinnerByPosition() {
+                const game = this.hgm.getGame();
+                const board = game.board;
+
+                // 计算双方威胁分数
+                const blackThreats = game.LineDetector.detectThreats(board, 'black', game);
+                const whiteThreats = game.LineDetector.detectThreats(board, 'white', game);
+
+                const blackScore = game.LineDetector.calculateThreatScore(blackThreats);
+                const whiteScore = game.LineDetector.calculateThreatScore(whiteThreats);
+
+                return blackScore > whiteScore ? 'black' : (whiteScore > blackScore ? 'white' : 'draw');
+            }
+        }
+
+        // ==================== 主测试控制 ====================
+        let hiddenGameManager = null;
+        let testRunner = null;
+
+        async function initHiddenGame() {
+            hiddenGameManager = new HiddenGameManager();
+            await hiddenGameManager.waitReady();
+            testRunner = new AITestRunner(hiddenGameManager);
+
+            log('游戏框架加载完成');
+        }
+
+        async function startTest() {
+            if (testState.isRunning) return;
+
+            // 获取配置
+            testState.blackDifficulty = document.getElementById('black-difficulty').value;
+            testState.whiteDifficulty = document.getElementById('white-difficulty').value;
+            testState.gameCount = parseInt(document.getElementById('game-count').value);
+            testState.testMode = document.getElementById('test-mode').value;
+
+            testState.isRunning = true;
+            testState.currentGame = 0;
+            testState.totalGames = testState.gameCount;
+            testState.results = [];
+            testState.startTime = Date.now();
+            testState.stats = { black: 0, white: 0, draw: 0 };
+
+            updateUIState('running');
+            log(`开始测试: ${testState.blackDifficulty} vs ${testState.whiteDifficulty}`);
+            log(`测试模式: ${testState.testMode}, 对局数: ${testState.gameCount}`);
+
+            try {
+                await runTestSuite();
+            } catch (e) {
+                log(`测试错误: ${e.message}`, true);
+                updateUIState('stopped');
+            }
+        }
+
+        async function runTestSuite() {
+            const { blackDifficulty, whiteDifficulty, gameCount, testMode } = testState;
+
+            for (let i = 0; i < gameCount; i++) {
+                if (!testState.isRunning) break;
+
+                testState.currentGame = i + 1;
+
+                log(`\n开始第 ${i + 1} 局...`);
+                updateProgress((i / gameCount) * 100, `对局中... ${i + 1}/${gameCount}`);
+
+                const result = await testRunner.runSingleTest(blackDifficulty, whiteDifficulty, i + 1);
+
+                testState.results.push(result);
+                testState.stats[result.winner === 'black' ? 'black' : (result.winner === 'white' ? 'white' : 'draw')]++;
+
+                log(`第 ${i + 1} 局完成: ${getWinnerText(result.winner)} (${result.turns}回合, ${Math.round(result.duration/1000)}秒)`);
+
+                updateStats();
+                addResultRow(result);
+
+                // 短暂延迟
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+
+            finishTest();
+        }
+
+        function finishTest() {
+            testState.isRunning = false;
+            updateUIState('stopped');
+            log(`\n测试完成! 总用时: ${Math.round((Date.now() - testState.startTime) / 1000)}秒`);
+
+            // 分析结果
+            analyzeResults();
+        }
+
+        function analyzeResults() {
+            const { results, blackDifficulty, whiteDifficulty, stats } = testState;
+            const total = results.length;
+
+            if (total === 0) return;
+
+            const blackWinRate = stats.black / total;
+            const whiteWinRate = stats.white / total;
+            const drawRate = stats.draw / total;
+
+            log(`\n========== 测试结果分析 ==========`);
+            log(`对局数: ${total}`);
+            log(`黑方(${blackDifficulty})胜率: ${(blackWinRate * 100).toFixed(1)}% (${stats.black}/${total})`);
+            log(`白方(${whiteDifficulty})胜率: ${(whiteWinRate * 100).toFixed(1)}% (${stats.white}/${total})`);
+            log(`平局率: ${(drawRate * 100).toFixed(1)}% (${stats.draw}/${total})`);
+
+            // 判断是否需要优化
+            const difficultyDiff = getDifficultyLevel(blackDifficulty) - getDifficultyLevel(whiteDifficulty);
+            const expectedWinRate = difficultyDiff === 0 ? TestConfig.targetWinRates.same : TestConfig.targetWinRates.oneLevelDiff;
+            const actualWinRate = blackWinRate;
+
+            const higherDiff = difficultyDiff > 0 ? blackDifficulty : whiteDifficulty;
+            const advantage = Math.abs(blackWinRate - 0.5);
+
+            log(`\n========== 平衡性评估 ==========`);
+
+            if (difficultyDiff === 0) {
+                // 同等级对战
+                if (Math.abs(blackWinRate - 0.5) <= 0.15) {
+                    log('✓ 同等级对战平衡性良好');
+                } else {
+                    log(`⚠️ 同等级对战不平衡: 胜率偏差 ${Math.abs(blackWinRate - 0.5).toFixed(2)} > 0.15`);
+                }
+            } else {
+                // 差一级对战
+                if (difficultyDiff > 0) {
+                    // 黑方更强
+                    if (blackWinRate >= 0.7) {
+                        log('✓ 差级对战平衡性良好 (高等级AI胜率符合预期)');
+                    } else {
+                        log(`⚠️ 差级对战不平衡: 高等级AI胜率 ${(blackWinRate * 100).toFixed(1)}% < 70%`);
+                    }
+                } else {
+                    // 白方更强
+                    if (whiteWinRate >= 0.7) {
+                        log('✓ 差级对战平衡性良好 (高等级AI胜率符合预期)');
+                    } else {
+                        log(`⚠️ 差级对战不平衡: 高等级AI胜率 ${(whiteWinRate * 100).toFixed(1)}% < 70%`);
+                    }
+                }
+            }
+
+            // 提供优化建议
+            suggestOptimizations(blackWinRate, whiteWinRate, blackDifficulty, whiteDifficulty);
+        }
+
+        function suggestOptimizations(blackWinRate, whiteWinRate, blackDiff, whiteDiff) {
+            log(`\n========== 优化建议 ==========`);
+
+            const suggestions = [];
+
+            // 同等级优化
+            if (blackDiff === whiteDiff) {
+                if (blackWinRate > 0.6) {
+                    suggestions.push(`白方(${whiteDiff})需要加强: 增加技能使用率或提高评估精度`);
+                    suggestions.push(`建议: 将${whiteDiff}难度skillUsageRate提高5-10%`);
+                } else if (blackWinRate < 0.4) {
+                    suggestions.push(`白方(${whiteDiff})需要加强: 增加技能使用率或提高评估精度`);
+                    suggestions.push(`建议: 将${whiteDiff}难度skillUsageRate提高5-10%`);
+                }
+            }
+            // 差级优化
+            else {
+                const higherDiff = blackWinRate > 0.5 ? blackDiff : whiteDiff;
+                const lowerDiff = blackWinRate > 0.5 ? whiteDiff : blackDiff;
+
+                if (getDifficultyLevel(higherDiff) - getDifficultyLevel(lowerDiff) === 1) {
+                    // 差一级
+                    if (higherDiff === 'easy' && lowerDiff === 'medium') {
+                        // 简单 vs 中等
+                        if (blackWinRate < 0.7 && whiteWinRate < 0.7) {
+                            suggestions.push(`中等难度需要加强: 提高威胁检测准确性或位置评估`);
+                            suggestions.push(`建议: 检查medium难度的威胁检测逻辑，确保能识别所有四连`);
+                        }
+                    } else if (higherDiff === 'medium' && lowerDiff === 'hard') {
+                        // 中等 vs 困难
+                        if (blackWinRate < 0.7 && whiteWinRate < 0.7) {
+                            suggestions.push(`困难难度可能需要加强: 检查技能组合触发条件`);
+                            suggestions.push(`建议: 调整技能组合的触发阈值或加成值`);
+                        }
+                    }
+                }
+            }
+
+            if (suggestions.length > 0) {
+                log('优化建议:');
+                suggestions.forEach((s, i) => {
+                    log(`${i + 1}. ${s}`);
+                });
+            } else {
+                log('✓ 当前配置平衡性良好，无需调整');
+            }
+        }
+
+        function getDifficultyLevel(diff) {
+            const levels = { 'easy': 1, 'medium': 2, 'hard': 3 };
+            return levels[diff] || 1;
+        }
+
+        function stopTest() {
+            testState.isRunning = false;
+            updateUIState('stopped');
+            log('\n测试已停止');
+        }
+
+        function exportResults() {
+            if (testState.results.length === 0) {
+                alert('没有可导出的结果');
+                return;
+            }
+
+            const data = {
+                timestamp: new Date().toISOString(),
+                config: {
+                    blackDifficulty: testState.blackDifficulty,
+                    whiteDifficulty: testState.whiteDifficulty,
+                    gameCount: testState.gameCount,
+                    testMode: testState.testMode
+                },
+                stats: testState.stats,
+                results: testState.results
+            };
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `ai-test-results-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            log('结果已导出');
+        }
+
+        function clearResults() {
+            testState.results = [];
+            testState.stats = { black: 0, white: 0, draw: 0 };
+            document.getElementById('results-body').innerHTML = '';
+            document.getElementById('results-container').style.display = 'none';
+            document.getElementById('stats-panel').style.display = 'none';
+            log('结果已清除');
+        }
+
+        // ==================== UI更新函数 ====================
+        function updateUIState(state) {
+            const startBtn = document.getElementById('start-btn');
+            const stopBtn = document.getElementById('stop-btn');
+            const progressContainer = document.getElementById('progress-container');
+            const logContainer = document.getElementById('log-container');
+
+            if (state === 'running') {
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                progressContainer.style.display = 'block';
+                logContainer.style.display = 'block';
+            } else if (state === 'stopped') {
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                startBtn.textContent = '▶️ 开始测试';
+            }
+        }
+
+        function updateProgress(percent, text) {
+            document.getElementById('progress-fill').style.width = `${percent}%`;
+            document.getElementById('progress-text').textContent = text;
+        }
+
+        function updateStats() {
+            const stats = testState.stats;
+            const total = testState.results.length;
+            if (total === 0) return;
+
+            document.getElementById('stats-panel').style.display = 'grid';
+            document.getElementById('results-container').style.display = 'block';
+
+            document.getElementById('stat-total').textContent = total;
+            document.getElementById('stat-black').textContent = stats.black;
+            document.getElementById('stat-white').textContent = stats.white;
+            document.getElementById('stat-draw').textContent = stats.draw;
+        }
+
+        function addResultRow(result) {
+            const tbody = document.getElementById('results-body');
+            const row = document.createElement('tr');
+
+            row.innerHTML = `
+                <td>${result.index}</td>
+                <td>${result.black}</td>
+                <td>${result.white}</td>
+                <td class="win-${result.winner}">${getWinnerText(result.winner)}</td>
+                <td>${result.turns}</td>
+                <td>${Math.round(result.duration/1000)}s</td>
+            `;
+
+            tbody.appendChild(row);
+        }
+
+        function getWinnerText(winner) {
+            if (winner === 'black') return '黑方胜';
+            if (winner === 'white') return '白方胜';
+            if (winner === 'draw') return '平局';
+            return winner || '未完成';
+        }
+
+        function log(message, isError = false) {
+            const logContent = document.getElementById('log-content');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            if (isError) {
+                entry.style.borderLeftColor = '#ff6b6b';
+            }
+            const time = new Date().toLocaleTimeString();
+            entry.textContent = `[${time}] ${message}`;
+            logContent.appendChild(entry);
+            logContent.scrollTop = logContent.scrollHeight;
+        }
+
+        // ==================== 初始化 ====================
+        window.addEventListener('load', () => {
+            initHiddenGame();
+        });
+    </script>
+</body>
+</html>
