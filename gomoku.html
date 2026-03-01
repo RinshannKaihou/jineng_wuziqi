@@ -415,7 +415,6 @@
             </div>
             <div class="controls">
                 <button class="btn btn-secondary" onclick="game.toggleAIMode()" id="ai-mode-btn">🤖 AI对战: 关闭</button>
-                <button class="btn btn-secondary" onclick="game.cycleAIDifficulty()" id="ai-difficulty-btn">🎮 难度: 简单</button>
                 <button class="btn btn-secondary" onclick="game.undo()">↩️ 悔棋</button>
                 <button class="btn btn-primary" onclick="game.restart()">🔄 新局</button>
                 <button class="btn btn-secondary" onclick="game.rematch()">🎯 重玩</button>
@@ -1278,7 +1277,6 @@ class GomokuGame {
 
         // AI相关状态
         this.aiEnabled = false;
-        this.aiDifficulty = 'easy';
         this.aiPlayer = 'white'; // AI执白
         this.aiInstance = null;
 
@@ -2840,7 +2838,7 @@ class GomokuGame {
      * 创建AI实例
      */
     createAIInstance() {
-        this.aiInstance = new GomokuAI(this, this.aiPlayer, this.aiDifficulty);
+        this.aiInstance = new GomokuAI(this, this.aiPlayer);
     }
 
     /**
@@ -2850,18 +2848,12 @@ class GomokuGame {
         this.aiEnabled = !this.aiEnabled;
 
         const btn = document.getElementById('ai-mode-btn');
-        const difficultyNames = {
-            'easy': '简单',
-            'medium': '中等',
-            'hard': '困难',
-            'expert': '专家'
-        };
 
         if (this.aiEnabled) {
-            btn.textContent = `🤖 AI: 开启 (${difficultyNames[this.aiDifficulty]})`;
+            btn.textContent = '🤖 AI: 开启';
             btn.classList.add('btn-primary');
             btn.classList.remove('btn-secondary');
-            this.updateStatus(`🤖 AI对战已开启<br>AI执白，玩家执黑<br>难度: ${difficultyNames[this.aiDifficulty]}`);
+            this.updateStatus('🤖 AI对战已开启<br>AI执白，玩家执黑');
 
             // 创建AI实例
             this.createAIInstance();
@@ -2878,55 +2870,6 @@ class GomokuGame {
             this.aiInstance = null;
         }
     }
-
-    /**
-     * 切换AI难度（循环切换）
-     */
-    setAIDifficulty(difficulty) {
-        // 如果没有指定难度，则循环切换
-        if (!difficulty) {
-            const difficulties = ['easy', 'medium', 'hard'];
-            const currentIndex = difficulties.indexOf(this.aiDifficulty);
-            const nextIndex = (currentIndex + 1) % difficulties.length;
-            difficulty = difficulties[nextIndex];
-        }
-
-        this.aiDifficulty = difficulty;
-
-        // 更新按钮文本
-        const btn = document.getElementById('ai-difficulty-btn');
-        const difficultyNames = {
-            'easy': '简单',
-            'medium': '中等',
-            'hard': '困难',
-            'expert': '专家'
-        };
-        btn.textContent = `🎮 难度: ${difficultyNames[difficulty]}`;
-
-        // 更新AI实例
-        if (this.aiEnabled && this.aiInstance) {
-            this.createAIInstance();
-        }
-
-        // 更新AI模式按钮文本
-        if (this.aiEnabled) {
-            const aiBtn = document.getElementById('ai-mode-btn');
-            aiBtn.textContent = `🤖 AI: 开启 (${difficultyNames[difficulty]})`;
-        }
-
-        this.updateStatus(`AI难度已设置为: ${difficultyNames[difficulty]}`);
-    }
-
-    /**
-     * 切换AI难度（供按钮调用）
-     */
-    cycleAIDifficulty() {
-        this.setAIDifficulty();
-    }
-
-    /**
-     * 切换AI难度（循环切换）
-     */
 
     /**
      * 触发AI行动

@@ -2144,11 +2144,11 @@ if (typeof SkillComboSystem === 'undefined') {
 // ==================== AI主类 ====================
 if (typeof GomokuAI === 'undefined') {
     window.GomokuAI = class GomokuAI {
-    constructor(game, player, difficulty = 'easy') {
+    constructor(game, player, difficulty = 'hard') {
         this.game = game;
         this.player = player;
-        this.difficulty = difficulty;
-        this.config = AI_CONFIG[difficulty] || AI_CONFIG.easy;
+        this.difficulty = 'hard';
+        this.config = AI_CONFIG.hard;
         this.isThinking = false;
         this.skillsDisabled = true; // AI固定禁用技能
 
@@ -2157,16 +2157,15 @@ if (typeof GomokuAI === 'undefined') {
         this.lastSkillUsed = null;
         this.skillHistory = [];
 
-        // 开局库（中高难度启用）
-        this.openingBook = (difficulty === 'medium' || difficulty === 'hard') ?
-            new OpeningBook() : null;
+        // 单一AI模式固定启用开局库
+        this.openingBook = new OpeningBook();
     }
 
     /**
      * 主决策函数
      */
     makeDecision() {
-        aiLog('[AI] makeDecision called, difficulty:', this.difficulty);
+        aiLog('[AI] makeDecision called, mode: AI');
 
         const opponent = this.getOpponent();
         const board = this.game.board;
@@ -2174,15 +2173,7 @@ if (typeof GomokuAI === 'undefined') {
         aiLog('[AI] Board state:', board);
         aiLog('[AI] Current player:', this.player, 'Opponent:', opponent);
 
-        if (this.difficulty === 'easy') {
-            return this.makeDecisionEasy(board, opponent);
-        } else if (this.difficulty === 'medium') {
-            return this.makeDecisionMedium(board, opponent);
-        } else if (this.difficulty === 'hard') {
-            return this.makeDecisionHard(board, opponent);
-        }
-
-        return this.makeDecisionEasy(board, opponent);
+        return this.makeDecisionHard(board, opponent);
     }
 
     /**
