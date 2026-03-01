@@ -2376,6 +2376,7 @@ if (typeof GomokuAI === 'undefined') {
      */
     makeDecisionHard(board, opponent) {
         this.turnCount++;
+        const moveCount = this.game.moveHistory?.length || 0;
 
         // 全面威胁检测
         const myThreats = LineDetector.detectThreats(board, this.player, this.game, { includePotentialThree: false });
@@ -2449,6 +2450,22 @@ if (typeof GomokuAI === 'undefined') {
             }
             // 如果找不到特定的防守位置，使用智能位置选择
             aiLog('[AI] Hard: Using smart position to block rush four');
+        }
+
+        // ========== 开局策略 ==========
+        // 困难模式在前期优先走开局库/中心邻域，避免不合理的偏移落子。
+        if (moveCount < 6) {
+            const openingDecision = this.handleOpeningStrategy(myThreats, opponentThreats);
+            if (
+                openingDecision &&
+                openingDecision.action === 'place' &&
+                Number.isInteger(openingDecision.row) &&
+                Number.isInteger(openingDecision.col) &&
+                (!this.game.canPlaceStone || this.game.canPlaceStone(openingDecision.row, openingDecision.col))
+            ) {
+                aiLog('[AI] Hard: Using opening strategy move', openingDecision);
+                return openingDecision;
+            }
         }
 
         // ========== 高级战术：双重威胁 ==========
