@@ -1376,11 +1376,12 @@ class GomokuGame {
     }
 
 
-    handleCellClick(row, col) {
+    handleCellClick(row, col, options = {}) {
         if (this.gameOver) return;
+        const fromAI = options && options.fromAI === true;
 
         // ========== AI模式下的玩家落子限制 ==========
-        if (this.aiEnabled && this.aiInstance) {
+        if (!fromAI && this.aiEnabled && this.aiInstance) {
             // 检查是否是AI回合
             if (this.currentPlayer === this.aiPlayer) {
                 this.showEffect(7, 7, '⏳ AI思考中，请稍候...');
@@ -1400,7 +1401,7 @@ class GomokuGame {
         }
 
         // ========== 使用已激活的技能 ==========
-        if (this.activeSkill) {
+        if (!fromAI && this.activeSkill) {
             // 检查技能封印
             if (this.skillSeal && this.skillSeal.player === this.currentPlayer && this.skillSeal.turns > 0) {
                 this.showEffect(7, 7, '❌ 技能被封印');
@@ -1883,7 +1884,7 @@ class GomokuGame {
 
         // 检查是否是AI回合
         if (this.aiEnabled && this.currentPlayer === this.aiPlayer && !this.gameOver) {
-            setTimeout(() => this.triggerAIAction(), 500);
+            setTimeout(() => this.triggerAIAction(), 80);
         }
     }
 
@@ -2849,7 +2850,6 @@ class GomokuGame {
         this.aiEnabled = !this.aiEnabled;
 
         const btn = document.getElementById('ai-mode-btn');
-        const typeNames = { 'basic': '基础', 'enhanced': '增强' };
         const difficultyNames = {
             'easy': '简单',
             'medium': '中等',
@@ -2858,17 +2858,17 @@ class GomokuGame {
         };
 
         if (this.aiEnabled) {
-            btn.textContent = `🤖 AI: 开启 (${typeNames[this.aiType]}/${difficultyNames[this.aiDifficulty]})`;
+            btn.textContent = `🤖 AI: 开启 (${difficultyNames[this.aiDifficulty]})`;
             btn.classList.add('btn-primary');
             btn.classList.remove('btn-secondary');
-            this.updateStatus(`🤖 AI对战已开启<br>AI执白，玩家执黑<br>类型: ${typeNames[this.aiType]} | 难度: ${difficultyNames[this.aiDifficulty]}`);
+            this.updateStatus(`🤖 AI对战已开启<br>AI执白，玩家执黑<br>难度: ${difficultyNames[this.aiDifficulty]}`);
 
             // 创建AI实例
             this.createAIInstance();
 
             // 如果当前是AI回合，触发AI行动
             if (this.currentPlayer === this.aiPlayer && !this.gameOver) {
-                setTimeout(() => this.triggerAIAction(), 500);
+                setTimeout(() => this.triggerAIAction(), 80);
             }
         } else {
             btn.textContent = '🤖 AI对战: 关闭';
@@ -2910,9 +2910,8 @@ class GomokuGame {
 
         // 更新AI模式按钮文本
         if (this.aiEnabled) {
-            const typeNames = { 'basic': '基础', 'enhanced': '增强' };
             const aiBtn = document.getElementById('ai-mode-btn');
-            aiBtn.textContent = `🤖 AI: 开启 (${typeNames[this.aiType]}/${difficultyNames[difficulty]})`;
+            aiBtn.textContent = `🤖 AI: 开启 (${difficultyNames[difficulty]})`;
         }
 
         this.updateStatus(`AI难度已设置为: ${difficultyNames[difficulty]}`);
