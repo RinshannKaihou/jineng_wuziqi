@@ -2266,8 +2266,8 @@ if (typeof GomokuAI === 'undefined') {
             }
         }
 
-        // 优先级7：阻止对方活三
-        if (opponentThreats.liveThree.length > 0 && Math.random() > 0.3) {
+        // 优先级7：阻止对方活三（固定执行，避免随机漏防）
+        if (opponentThreats.liveThree.length > 0) {
             const position = this.findLiveThreePosition(opponent);
             if (position) {
                 aiLog('[AI] Easy: Blocking opponent live three');
@@ -2277,7 +2277,7 @@ if (typeof GomokuAI === 'undefined') {
 
         // 选择最佳位置（使用改进的评估方法）
         aiLog('[AI] Easy: Calling selectBestPositionSmart');
-        const bestMove = this.selectBestPositionSmart(myThreats, opponentThreats, 0.3);
+        const bestMove = this.selectBestPositionSmart(myThreats, opponentThreats, 0);
         aiLog('[AI] Easy: Selected position:', bestMove);
         return {
             action: 'place',
@@ -2362,8 +2362,8 @@ if (typeof GomokuAI === 'undefined') {
             }
         }
 
-        // 使用智能位置选择（低随机性）
-        const bestMove = this.selectBestPositionSmart(myThreats, opponentThreats, 0.15);
+        // 使用智能位置选择（确定性）
+        const bestMove = this.selectBestPositionSmart(myThreats, opponentThreats, 0);
         return {
             action: 'place',
             row: bestMove.row,
@@ -2498,8 +2498,8 @@ if (typeof GomokuAI === 'undefined') {
 
         // ========== 技能决策 ==========
         // ========== 最终决策：智能位置选择 ==========
-        // 使用几乎无随机性的智能选择
-        const bestMove = this.selectBestPositionSmart(myThreats, opponentThreats, 0.05);
+        // 使用确定性的智能选择
+        const bestMove = this.selectBestPositionSmart(myThreats, opponentThreats, 0);
         aiLog('[AI] Hard: Selecting best position:', bestMove);
         return {
             action: 'place',
@@ -3196,6 +3196,34 @@ if (typeof GomokuAI === 'undefined') {
     }
 
     /**
+     * 对候选位置进行确定性排序（避免同局面下随机抖动）
+     */
+    compareScoredMoves(a, b) {
+        if (b.score !== a.score) {
+            return b.score - a.score;
+        }
+
+        // 同分时优先中心高价值点
+        const valueDelta = LineDetector.getPositionValue(b.row, b.col) -
+            LineDetector.getPositionValue(a.row, a.col);
+        if (valueDelta !== 0) {
+            return valueDelta;
+        }
+
+        // 再按距离中心、坐标兜底，保证完全确定性
+        const distDelta = LineDetector.getDistanceToCenter(a.row, a.col) -
+            LineDetector.getDistanceToCenter(b.row, b.col);
+        if (distDelta !== 0) {
+            return distDelta;
+        }
+
+        if (a.row !== b.row) {
+            return a.row - b.row;
+        }
+        return a.col - b.col;
+    }
+
+    /**
      * 简单难度：选择最佳落子位置
      */
     selectBestPositionEasy() {
@@ -3213,11 +3241,9 @@ if (typeof GomokuAI === 'undefined') {
             score: this.evaluatePositionSimple(pos)
         }));
 
-        scored.sort((a, b) => b.score - a.score);
-        const topCandidates = scored.slice(0, Math.min(3, scored.length));
-        const selected = topCandidates[Math.floor(Math.random() * topCandidates.length)];
-        aiLog('[AI] Selected position:', selected);
-        return selected;
+        scored.sort((a, b) => this.compareScoredMoves(a, b));
+        aiLog('[AI] Selected position:', scored[0]);
+        return scored[0];
     }
 
     /**
@@ -3235,10 +3261,8 @@ if (typeof GomokuAI === 'undefined') {
             score: this.evaluatePositionMedium(pos, myThreats, opponentThreats)
         }));
 
-        scored.sort((a, b) => b.score - a.score);
-
-        const topCandidates = scored.slice(0, Math.min(3, scored.length));
-        return topCandidates[Math.floor(Math.random() * topCandidates.length)];
+        scored.sort((a, b) => this.compareScoredMoves(a, b));
+        return scored[0];
     }
 
     /**
@@ -3257,23 +3281,8 @@ if (typeof GomokuAI === 'undefined') {
             score: this.evaluatePositionHard(pos, myThreats, opponentThreats, threatAdvantage)
         }));
 
-        scored.sort((a, b) => b.score - a.score);
-
-        // 根据局势选择策略
-        let selectionRange;
-        if (threatAdvantage > 1000) {
-            // 顺风：更稳健，选择范围小
-            selectionRange = 1;
-        } else if (threatAdvantage < -500) {
-            // 逆风：更冒险，选择范围大
-            selectionRange = 5;
-        } else {
-            // 均势：正常选择
-            selectionRange = 2;
-        }
-
-        const topCandidates = scored.slice(0, Math.min(selectionRange, scored.length));
-        return topCandidates[Math.floor(Math.random() * topCandidates.length)];
+        scored.sort((a, b) => this.compareScoredMoves(a, b));
+        return scored[0];
     }
 
     /**
@@ -3310,9 +3319,6 @@ if (typeof GomokuAI === 'undefined') {
         score += opponentThreats.liveTwo.length * 40;     // 阻止活二
         score += opponentThreats.rushFour.length * 800;   // 阻止冲四
 
-        // 添加一些随机性，使AI不那么机械
-        score += Math.random() * 30;
-
         return score;
     }
 
@@ -3340,8 +3346,6 @@ if (typeof GomokuAI === 'undefined') {
         if (opponentThreats.liveFour.length > 0 && opponentNewThreats.liveFour.length === 0) score += 3000;
         if (opponentThreats.liveThree.length > 0 && opponentNewThreats.liveThree.length === 0) score += 300;
         if (opponentThreats.rushFour.length > 0 && opponentNewThreats.rushFour.length === 0) score += 1000;
-
-        score += Math.random() * 30;
 
         return score;
     }
@@ -3400,9 +3404,6 @@ if (typeof GomokuAI === 'undefined') {
 
         // 6. 能量获取潜力
         score += this.evaluateEnergyPotential(pos);
-
-        // 7. 添加可控随机性
-        score += Math.random() * 50 - 25;
 
         return score;
     }
@@ -3796,7 +3797,7 @@ if (typeof GomokuAI === 'undefined') {
      * 智能位置选择（综合评估）
      * @param {Object} myThreats - 己方威胁
      * @param {Object} opponentThreats - 对方威胁
-     * @param {Number} randomness - 随机性因子 (0-1)
+     * @param {Number} randomness - 随机性参数（已保留兼容，不再参与评分）
      */
     selectBestPositionSmart(myThreats, opponentThreats, randomness = 0) {
         const board = this.game.board;
@@ -3857,13 +3858,18 @@ if (typeof GomokuAI === 'undefined') {
             // 3. 位置价值（中心位置更有价值）
             score += LineDetector.getPositionValue(pos.row, pos.col);
 
-            // 4. 添加随机性
-            score += Math.random() * randomness * 1000;
-
-            // 更新最佳位置
+            // 4. 兼容参数 randomness：不再用于评分，避免同局面随机抖动
             if (score > bestScore) {
                 bestScore = score;
                 bestPosition = pos;
+            } else if (score === bestScore && bestPosition) {
+                const preferred = this.compareScoredMoves(
+                    { ...pos, score },
+                    { ...bestPosition, score: bestScore }
+                );
+                if (preferred < 0) {
+                    bestPosition = pos;
+                }
             }
         }
 
