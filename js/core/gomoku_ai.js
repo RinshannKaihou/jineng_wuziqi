@@ -2182,192 +2182,148 @@ if (typeof GomokuAI === 'undefined') {
     makeDecisionEasy(board, opponent) {
         aiLog('[AI] makeDecisionEasy: Start');
 
+        // ===== 第0优先级：立即获胜/必防 =====
+        const immediateWin = this.findWinPosition(this.player);
+        if (immediateWin) {
+            return { action: 'place', row: immediateWin.row, col: immediateWin.col };
+        }
+
+        const immediateBlock = this.findWinPosition(opponent);
+        if (immediateBlock) {
+            return { action: 'place', row: immediateBlock.row, col: immediateBlock.col };
+        }
+
         // 获取双方的威胁信息
         const myThreats = LineDetector.detectThreats(board, this.player, this.game, { includePotentialThree: false });
         const opponentThreats = LineDetector.detectThreats(board, opponent, this.game, { includePotentialThree: false });
 
-        aiLog('[AI] makeDecisionEasy: My threats:', myThreats);
-        aiLog('[AI] makeDecisionEasy: Opponent threats:', opponentThreats);
-
-        // 优先级1：自己能赢
-        if (myThreats.win.length > 0) {
-            const winPosition = this.findWinPosition(this.player);
-            if (winPosition) {
-                aiLog('[AI] Easy: Found winning move');
-                return { action: 'place', row: winPosition.row, col: winPosition.col };
-            }
-        }
-
-        // 优先级2：对方要赢，必须防守
-        if (opponentThreats.win.length > 0) {
-            const blockPosition = this.findBlockPosition(opponent);
-            if (blockPosition) {
-                aiLog('[AI] Easy: Blocking opponent win');
-                return { action: 'place', row: blockPosition.row, col: blockPosition.col };
-            }
-        }
-
-        // 优先级3：自己有活四，直接赢
+        // ===== 第1优先级：活四 =====
         if (myThreats.liveFour.length > 0) {
-            // 找到能将活四完成成五连的位置
-            const winPosition = this.findWinPosition(this.player);
-            if (winPosition) {
-                aiLog('[AI] Easy: Completing live four to win at', winPosition.row, winPosition.col);
-                return { action: 'place', row: winPosition.row, col: winPosition.col };
-            }
-            // 如果找不到直接获胜的位置，尝试形成新的活四
-            const position = this.findLiveFourPosition(this.player);
-            if (position) {
-                aiLog('[AI] Easy: Found additional live four at', position.row, position.col);
-                return { action: 'place', row: position.row, col: position.col };
-            }
+            const winPos = this.findWinPosition(this.player);
+            if (winPos) return { action: 'place', row: winPos.row, col: winPos.col };
         }
 
-        // 优先级4：对方有活四，必须防守
         if (opponentThreats.liveFour.length > 0) {
-            // 找到对方活四威胁的防守位置
-            const blockPosition = this.findLiveFourBlockPosition(opponentThreats);
-            if (blockPosition) {
-                aiLog('[AI] Easy: Blocking opponent live four at', blockPosition.row, blockPosition.col);
-                return { action: 'place', row: blockPosition.row, col: blockPosition.col };
-            }
-            // 如果找不到特定的防守位置，尝试找到对方可能获胜的位置并阻止
-            const blockWin = this.findBlockPosition(opponent);
-            if (blockWin) {
-                aiLog('[AI] Easy: Blocking opponent win at', blockWin.row, blockWin.col);
-                return { action: 'place', row: blockWin.row, col: blockWin.col };
-            }
+            const blockPos = this.findLiveFourBlockPosition(opponentThreats);
+            if (blockPos) return { action: 'place', row: blockPos.row, col: blockPos.col };
         }
 
-        // 优先级5：对方有冲四，需要防守
+        // ===== 第2优先级：冲四 =====
         if (opponentThreats.rushFour.length > 0) {
-            const position = this.findRushFourPosition(opponent);
-            if (position) {
-                aiLog('[AI] Easy: Blocking opponent rush four');
-                return { action: 'place', row: position.row, col: position.col };
-            }
+            const blockPos = this.findRushFourBlockPosition(opponentThreats);
+            if (blockPos) return { action: 'place', row: blockPos.row, col: blockPos.col };
         }
 
-        // 优先级6：自己有活三，优先发展
-        if (myThreats.liveThree.length > 0) {
-            const position = this.findLiveThreePosition(this.player);
-            if (position) {
-                aiLog('[AI] Easy: Found live three');
-                return { action: 'place', row: position.row, col: position.col };
-            }
-        }
+        const myRushFour = this.findRushFourPosition(this.player);
+        if (myRushFour) return { action: 'place', row: myRushFour.row, col: myRushFour.col };
 
-        // 优先级7：阻止对方活三（固定执行，避免随机漏防）
+        // ===== 第3优先级：活三 =====
         if (opponentThreats.liveThree.length > 0) {
-            const position = this.findLiveThreePosition(opponent);
-            if (position) {
-                aiLog('[AI] Easy: Blocking opponent live three');
-                return { action: 'place', row: position.row, col: position.col };
-            }
+            const blockPos = this.findBestLiveThreeBlock(opponentThreats, opponent);
+            if (blockPos) return { action: 'place', row: blockPos.row, col: blockPos.col };
         }
 
-        // 选择最佳位置（使用改进的评估方法）
+        if (myThreats.liveThree.length > 0) {
+            const extendPos = this.findLiveThreeExtension(myThreats, opponentThreats);
+            if (extendPos) return { action: 'place', row: extendPos.row, col: extendPos.col };
+        }
+
+        const createThree = this.findCreateLiveThreePosition(this.player);
+        if (createThree) return { action: 'place', row: createThree.row, col: createThree.col };
+
+        // 选择最佳位置
         aiLog('[AI] Easy: Calling selectBestPositionSmart');
         const bestMove = this.selectBestPositionSmart(myThreats, opponentThreats, 0);
         aiLog('[AI] Easy: Selected position:', bestMove);
-        return {
-            action: 'place',
-            row: bestMove.row,
-            col: bestMove.col
-        };
+        return { action: 'place', row: bestMove.row, col: bestMove.col };
     }
 
     /**
-     * 中等难度决策
+     * 中等难度决策（增强版）
      */
     makeDecisionMedium(board, opponent) {
+        // ===== 第0优先级：立即获胜/必防 =====
+        const immediateWin = this.findWinPosition(this.player);
+        if (immediateWin) {
+            return { action: 'place', row: immediateWin.row, col: immediateWin.col };
+        }
+
+        const immediateBlock = this.findWinPosition(opponent);
+        if (immediateBlock) {
+            return { action: 'place', row: immediateBlock.row, col: immediateBlock.col };
+        }
+
         const myThreats = LineDetector.detectThreats(board, this.player, this.game, { includePotentialThree: false });
         const opponentThreats = LineDetector.detectThreats(board, opponent, this.game, { includePotentialThree: false });
 
-        // 优先级处理
-        if (myThreats.win.length > 0) {
-            const winPosition = this.findWinPosition(this.player);
-            if (winPosition) {
-                return { action: 'place', row: winPosition.row, col: winPosition.col };
-            }
-        }
-
-        if (opponentThreats.win.length > 0) {
-            const blockPosition = this.findBlockPosition(opponent);
-            if (blockPosition) {
-                return { action: 'place', row: blockPosition.row, col: blockPosition.col };
-            }
-        }
-
+        // ===== 第1优先级：活四 =====
         if (myThreats.liveFour.length > 0) {
-            // 找到能将活四完成成五连的位置
-            const winPosition = this.findWinPosition(this.player);
-            if (winPosition) {
-                aiLog('[AI] Medium: Completing live four to win at', winPosition.row, winPosition.col);
-                return { action: 'place', row: winPosition.row, col: winPosition.col };
-            }
-            // 如果找不到直接获胜的位置，尝试形成新的活四
-            const position = this.findLiveFourPosition(this.player);
-            if (position) {
-                aiLog('[AI] Medium: Found additional live four at', position.row, position.col);
-                return { action: 'place', row: position.row, col: position.col };
-            }
+            const winPos = this.findWinPosition(this.player);
+            if (winPos) return { action: 'place', row: winPos.row, col: winPos.col };
         }
 
         if (opponentThreats.liveFour.length > 0) {
-            // 找到对方活四威胁的防守位置
-            const blockPosition = this.findLiveFourBlockPosition(opponentThreats);
-            if (blockPosition) {
-                aiLog('[AI] Medium: Blocking opponent live four at', blockPosition.row, blockPosition.col);
-                return { action: 'place', row: blockPosition.row, col: blockPosition.col };
-            }
-            // 如果找不到特定的防守位置，尝试找到对方可能获胜的位置并阻止
-            const blockWin = this.findBlockPosition(opponent);
-            if (blockWin) {
-                aiLog('[AI] Medium: Blocking opponent win at', blockWin.row, blockWin.col);
-                return { action: 'place', row: blockWin.row, col: blockWin.col };
-            }
+            const blockPos = this.findLiveFourBlockPosition(opponentThreats);
+            if (blockPos) return { action: 'place', row: blockPos.row, col: blockPos.col };
         }
 
+        // ===== 第2优先级：双杀 =====
+        const myDouble = this.findDoubleAttackPosition(myThreats, opponentThreats);
+        if (myDouble) return { action: 'place', row: myDouble.row, col: myDouble.col };
+
+        if (opponentThreats.liveThree.length >= 2 || opponentThreats.rushFour.length >= 2) {
+            const doubleDefense = this.findDoubleDefensePosition(opponentThreats, opponent);
+            if (doubleDefense) return { action: 'place', row: doubleDefense.row, col: doubleDefense.col };
+        }
+
+        // ===== 第3优先级：冲四 =====
         if (opponentThreats.rushFour.length > 0) {
-            // 找到对方冲四威胁的防守位置
-            const blockPosition = this.findRushFourBlockPosition(opponentThreats);
-            if (blockPosition) {
-                aiLog('[AI] Medium: Blocking opponent rush four at', blockPosition.row, blockPosition.col);
-                return { action: 'place', row: blockPosition.row, col: blockPosition.col };
-            }
+            const blockPos = this.findRushFourBlockPosition(opponentThreats);
+            if (blockPos) return { action: 'place', row: blockPos.row, col: blockPos.col };
         }
 
-        // 检查双重威胁（两个活三）
-        const doubleThreat = this.findDoubleThreat(myThreats);
-        if (doubleThreat) {
-            return { action: 'place', row: doubleThreat.row, col: doubleThreat.col };
+        const myRushFour = this.findRushFourPosition(this.player);
+        if (myRushFour) return { action: 'place', row: myRushFour.row, col: myRushFour.col };
+
+        // ===== 第4优先级：活三 =====
+        if (opponentThreats.liveThree.length > 0) {
+            const blockPos = this.findBestLiveThreeBlock(opponentThreats, opponent);
+            if (blockPos) return { action: 'place', row: blockPos.row, col: blockPos.col };
         }
 
-        // 检查对方的活三，必须防守
-        if (opponentThreats.liveThree.length >= 2) {
-            // 对方有多个活三，需要阻止
-            const position = this.findBestBlockPosition(opponentThreats);
-            if (position) {
-                return { action: 'place', row: position.row, col: position.col };
-            }
+        if (myThreats.liveThree.length > 0) {
+            const extendPos = this.findLiveThreeExtension(myThreats, opponentThreats);
+            if (extendPos) return { action: 'place', row: extendPos.row, col: extendPos.col };
         }
 
-        // 使用智能位置选择（确定性）
+        const createThree = this.findCreateLiveThreePosition(this.player);
+        if (createThree) return { action: 'place', row: createThree.row, col: createThree.col };
+
+        // 使用智能位置选择
         const bestMove = this.selectBestPositionSmart(myThreats, opponentThreats, 0);
-        return {
-            action: 'place',
-            row: bestMove.row,
-            col: bestMove.col
-        };
+        return { action: 'place', row: bestMove.row, col: bestMove.col };
     }
 
     /**
-     * 困难难度决策
+     * 困难难度决策 - 改进版
      */
     makeDecisionHard(board, opponent) {
         this.turnCount++;
         const moveCount = this.game.moveHistory?.length || 0;
+
+        // ========== 第0优先级：直接检测立即获胜/必防 ==========
+        // 这是最可靠的检测方式，不依赖threats.win
+        const immediateWin = this.findWinPosition(this.player);
+        if (immediateWin) {
+            aiLog('[AI] Hard: IMMEDIATE WIN at', immediateWin.row, immediateWin.col);
+            return { action: 'place', row: immediateWin.row, col: immediateWin.col };
+        }
+
+        const immediateBlock = this.findWinPosition(opponent);
+        if (immediateBlock) {
+            aiLog('[AI] Hard: IMMEDIATE BLOCK at', immediateBlock.row, immediateBlock.col);
+            return { action: 'place', row: immediateBlock.row, col: immediateBlock.col };
+        }
 
         // 全面威胁检测
         const myThreats = LineDetector.detectThreats(board, this.player, this.game, { includePotentialThree: false });
@@ -2380,150 +2336,131 @@ if (typeof GomokuAI === 'undefined') {
 
         aiLog('[AI] Hard: My threats:', myThreats, 'Opponent threats:', opponentThreats);
 
-        // ========== 最高优先级：必胜/必防 ==========
-        // 优先级1：自己能赢
-        if (myThreats.win.length > 0) {
-            const winPosition = this.findWinPosition(this.player);
-            if (winPosition) {
-                aiLog('[AI] Hard: Found winning move');
-                return { action: 'place', row: winPosition.row, col: winPosition.col };
-            }
-        }
-
-        // 优先级2：对方要赢，必须防守
-        if (opponentThreats.win.length > 0) {
-            const blockPosition = this.findBlockPosition(opponent);
-            if (blockPosition) {
-                aiLog('[AI] Hard: Blocking opponent win');
-                return { action: 'place', row: blockPosition.row, col: blockPosition.col };
-            }
-        }
-
-        // 优先级3：自己有活四，直接赢
+        // ========== 第1优先级：活四处理 ==========
+        // 自己有活四 - 立即获胜（findWinPosition应该已经处理，但作为兜底）
         if (myThreats.liveFour.length > 0) {
-            // 找到能将活四完成成五连的位置
-            const winPosition = this.findWinPosition(this.player);
-            if (winPosition) {
-                aiLog('[AI] Hard: Completing live four to win at', winPosition.row, winPosition.col);
-                return { action: 'place', row: winPosition.row, col: winPosition.col };
-            }
-            // 如果找不到直接获胜的位置，尝试形成更多的活四
-            const position = this.findLiveFourPosition(this.player);
-            if (position) {
-                aiLog('[AI] Hard: Found additional live four at', position.row, position.col);
-                return { action: 'place', row: position.row, col: position.col };
+            const winPos = this.findWinPosition(this.player);
+            if (winPos) {
+                return { action: 'place', row: winPos.row, col: winPos.col };
             }
         }
 
-        // 优先级4：对方有活四，必须防守
+        // 对方有活四 - 必须防守
         if (opponentThreats.liveFour.length > 0) {
-            // 找到对方活四威胁的防守位置
-            const blockPosition = this.findLiveFourBlockPosition(opponentThreats);
-            if (blockPosition) {
-                aiLog('[AI] Hard: Blocking opponent live four at', blockPosition.row, blockPosition.col);
-                return { action: 'place', row: blockPosition.row, col: blockPosition.col };
+            const blockPos = this.findLiveFourBlockPosition(opponentThreats);
+            if (blockPos) {
+                aiLog('[AI] Hard: Blocking opponent live four at', blockPos.row, blockPos.col);
+                return { action: 'place', row: blockPos.row, col: blockPos.col };
             }
-            // 如果找不到特定的防守位置，尝试找到对方可能获胜的位置并阻止
-            const blockWin = this.findBlockPosition(opponent);
-            if (blockWin) {
-                aiLog('[AI] Hard: Blocking opponent win at', blockWin.row, blockWin.col);
-                return { action: 'place', row: blockWin.row, col: blockWin.col };
+            // 如果找不到防守点，尝试用findWinPosition找（活四的端点就是获胜点）
+            const emergencyBlock = this.findWinPosition(opponent);
+            if (emergencyBlock) {
+                return { action: 'place', row: emergencyBlock.row, col: emergencyBlock.col };
             }
         }
 
-        // 优先级5：对方有冲四，需要防守
+        // ========== 第2优先级：双杀局面 ==========
+        // 对方有多个冲四/活三组合 - 检查是否能防守
+        if (opponentThreats.rushFour.length >= 2 || 
+            (opponentThreats.rushFour.length >= 1 && opponentThreats.liveThree.length >= 1)) {
+            const doubleDefense = this.findDoubleDefensePosition(opponentThreats, opponent);
+            if (doubleDefense) {
+                aiLog('[AI] Hard: Defending against double threat');
+                return { action: 'place', row: doubleDefense.row, col: doubleDefense.col };
+            }
+            // 无法防守，尝试制造自己的双杀
+            aiLog('[AI] Hard: Cannot defend double threat, trying counter-attack');
+        }
+
+        // 自己有双杀机会 - 必胜
+        const myDoubleAttack = this.findDoubleAttackPosition(myThreats, opponentThreats);
+        if (myDoubleAttack) {
+            aiLog('[AI] Hard: Double attack found at', myDoubleAttack.row, myDoubleAttack.col);
+            return { action: 'place', row: myDoubleAttack.row, col: myDoubleAttack.col };
+        }
+
+        // ========== 第3优先级：冲四 ==========
+        // 对方有冲四 - 需要防守
         if (opponentThreats.rushFour.length > 0) {
-            // 找到对方冲四威胁的防守位置
-            const blockPosition = this.findRushFourBlockPosition(opponentThreats);
-            if (blockPosition) {
-                aiLog('[AI] Hard: Blocking opponent rush four at', blockPosition.row, blockPosition.col);
-                return { action: 'place', row: blockPosition.row, col: blockPosition.col };
+            const blockPos = this.findRushFourBlockPosition(opponentThreats);
+            if (blockPos) {
+                aiLog('[AI] Hard: Blocking rush four at', blockPos.row, blockPos.col);
+                return { action: 'place', row: blockPos.row, col: blockPos.col };
             }
-            // 如果找不到特定的防守位置，使用智能位置选择
-            aiLog('[AI] Hard: Using smart position to block rush four');
         }
 
-        // ========== 开局策略 ==========
-        // 仅在局面平稳时使用开局库，避免在已有明显威胁时忽略防守。
+        // 自己制造冲四
+        const rushFourPos = this.findRushFourPosition(this.player);
+        if (rushFourPos) {
+            aiLog('[AI] Hard: Creating rush four');
+            return { action: 'place', row: rushFourPos.row, col: rushFourPos.col };
+        }
+
+        // ========== 第4优先级：开局策略 ==========
         const isQuietOpening =
-            moveCount < 6 &&
+            moveCount < 8 &&
             myThreats.liveThree.length === 0 &&
             myThreats.rushFour.length === 0 &&
-            myThreats.liveFour.length === 0 &&
             opponentThreats.liveThree.length === 0 &&
-            opponentThreats.rushFour.length === 0 &&
-            opponentThreats.liveFour.length === 0 &&
-            opponentThreats.win.length === 0;
+            opponentThreats.rushFour.length === 0;
 
         if (isQuietOpening) {
             const openingDecision = this.handleOpeningStrategy(myThreats, opponentThreats);
-            if (
-                openingDecision &&
-                openingDecision.action === 'place' &&
+            if (openingDecision?.action === 'place' &&
                 Number.isInteger(openingDecision.row) &&
                 Number.isInteger(openingDecision.col) &&
-                (!this.game.canPlaceStone || this.game.canPlaceStone(openingDecision.row, openingDecision.col))
-            ) {
-                aiLog('[AI] Hard: Using opening strategy move', openingDecision);
+                (!this.game.canPlaceStone || this.game.canPlaceStone(openingDecision.row, openingDecision.col))) {
+                aiLog('[AI] Hard: Using opening strategy');
                 return openingDecision;
             }
         }
 
-        // ========== 高级战术：双重威胁 ==========
-        // 检查是否能形成双重威胁（两个活三或活三+冲四）
-        const doubleThreat = this.findDoubleThreat(myThreats);
-        if (doubleThreat) {
-            aiLog('[AI] Hard: Found double threat');
-            return { action: 'place', row: doubleThreat.row, col: doubleThreat.col };
-        }
-
-        // 检查对方的潜在双重威胁，需要阻止
+        // ========== 第5优先级：活三攻防 ==========
+        // 防守对方活三（多个活三需要特别处理）
         if (opponentThreats.liveThree.length >= 2) {
-            const blockPosition = this.findBestBlockPosition(opponentThreats);
-            if (blockPosition) {
-                aiLog('[AI] Hard: Blocking double threat');
-                return { action: 'place', row: blockPosition.row, col: blockPosition.col };
+            const multiDefense = this.findBestBlockPosition(opponentThreats);
+            if (multiDefense) {
+                aiLog('[AI] Hard: Blocking multiple live threes');
+                return { action: 'place', row: multiDefense.row, col: multiDefense.col };
             }
         }
 
-        // ========== 进攻策略 ==========
-        // 优先级6：自己有活三，优先发展
-        if (myThreats.liveThree.length > 0) {
-            // 找到能形成活四的位置
-            const liveFourPos = this.findLiveFourPosition(this.player);
-            if (liveFourPos) {
-                aiLog('[AI] Hard: Extending live three to live four');
-                return { action: 'place', row: liveFourPos.row, col: liveFourPos.col };
-            }
-
-            // 找到能形成新活三的位置
-            const position = this.findLiveThreePosition(this.player);
-            if (position) {
-                aiLog('[AI] Hard: Creating new live three');
-                return { action: 'place', row: position.row, col: position.col };
-            }
-        }
-
-        // ========== 防守策略 ==========
-        // 阻止对方活三
         if (opponentThreats.liveThree.length > 0) {
-            const position = this.findBestBlockPosition(opponentThreats);
-            if (position) {
-                aiLog('[AI] Hard: Blocking opponent live three');
-                return { action: 'place', row: position.row, col: position.col };
+            const blockPos = this.findBestLiveThreeBlock(opponentThreats, opponent);
+            if (blockPos) {
+                aiLog('[AI] Hard: Blocking live three at', blockPos.row, blockPos.col);
+                return { action: 'place', row: blockPos.row, col: blockPos.col };
             }
         }
 
-        // ========== 技能决策 ==========
+        // 发展自己的活三
+        if (myThreats.liveThree.length > 0) {
+            const extendPos = this.findLiveThreeExtension(myThreats, opponentThreats);
+            if (extendPos) {
+                aiLog('[AI] Hard: Extending live three');
+                return { action: 'place', row: extendPos.row, col: extendPos.col };
+            }
+        }
+
+        // 制造活三
+        const createThreePos = this.findCreateLiveThreePosition(this.player);
+        if (createThreePos) {
+            aiLog('[AI] Hard: Creating live three');
+            return { action: 'place', row: createThreePos.row, col: createThreePos.col };
+        }
+
+        // ========== 第6优先级：深度搜索 ==========
+        // 使用AlphaBeta搜索寻找最佳位置
+        const searchResult = this.alphaBetaSearch(3);
+        if (searchResult && searchResult.score > 1000) {
+            aiLog('[AI] Hard: AlphaBeta found good move with score', searchResult.score);
+            return { action: 'place', row: searchResult.row, col: searchResult.col };
+        }
+
         // ========== 最终决策：智能位置选择 ==========
-        // 使用确定性的智能选择
         const bestMove = this.selectBestPositionSmart(myThreats, opponentThreats, 0);
-        aiLog('[AI] Hard: Selecting best position:', bestMove);
-        return {
-            action: 'place',
-            row: bestMove.row,
-            col: bestMove.col
-        };
+        aiLog('[AI] Hard: Final selection:', bestMove);
+        return { action: 'place', row: bestMove.row, col: bestMove.col };
     }
 
     /**
@@ -3649,57 +3586,89 @@ if (typeof GomokuAI === 'undefined') {
     }
 
     /**
-     * 找到防守对方活四的位置
+     * 找到防守对方活四的位置 - 改进版
+     * 活四有两端开放，防守方必须堵住其中一端
      */
     findLiveFourBlockPosition(opponentThreats) {
         const board = this.game.board;
         const opponent = this.getOpponent();
-        let bestPosition = null;
-        let bestScore = -Infinity;
 
         aiLog('[AI] findLiveFourBlockPosition: opponentThreats.liveFour =', opponentThreats.liveFour);
 
-        // 遍历对方的所有活四威胁
+        if (opponentThreats.liveFour.length === 0) return null;
+
+        // 收集所有可能的防守点
+        const defensePoints = [];
+
         for (const threat of opponentThreats.liveFour) {
             const { startRow, startCol, dr, dc } = threat;
             aiLog('[AI] findLiveFourBlockPosition: Checking threat at', startRow, startCol, 'direction', dr, dc);
 
-            // 找到这个威胁线上的防守位置
-            for (let i = -4; i <= 4; i++) {
-                const row = startRow + dr * i;
-                const col = startCol + dc * i;
-
-                if (row < 0 || row >= 15 || col < 0 || col >= 15) continue;
-                if (board[row][col] !== null) continue;
-                if (!this.game.canPlaceStone(row, col)) continue;
-
-                // 评估这个位置的防守价值
-                let score = 0;
-
-                // 在这个位置由AI落子，检查是否能阻止对方活四
-                board[row][col] = this.player;
-                const opponentNewThreats = LineDetector.detectThreats(board, opponent, this.game, { includePotentialThree: false });
-                const myNewThreats = LineDetector.detectThreats(board, this.player, this.game, { includePotentialThree: false });
-                board[row][col] = null;
-
-                // 如果落子后对方活四数量减少，说明这个位置是有效的防守位置
-                const liveFourReduced = opponentThreats.liveFour.length - opponentNewThreats.liveFour.length;
-                score += liveFourReduced * 100000;
-                score += (opponentThreats.rushFour.length - opponentNewThreats.rushFour.length) * 50000;
-                score += (opponentThreats.liveThree.length - opponentNewThreats.liveThree.length) * 5000;
-
-                // 同时也要考虑是否能形成自己的威胁（进攻性防守）
-                score += myNewThreats.liveFour.length * 10000;
-                score += myNewThreats.rushFour.length * 5000;
-                score += myNewThreats.liveThree.length * 1000;
-
-                // 位置价值
-                score += LineDetector.getPositionValue(row, col);
-
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestPosition = { row, col };
+            // 找到活四的连续棋子位置
+            const stones = [];
+            for (let i = -3; i <= 3; i++) {
+                const r = startRow + dr * i;
+                const c = startCol + dc * i;
+                if (r >= 0 && r < 15 && c >= 0 && c < 15 && board[r][c] === opponent) {
+                    stones.push({ row: r, col: c });
                 }
+            }
+
+            if (stones.length < 4) continue;
+
+            // 找到两端
+            const firstStone = stones[0];
+            const lastStone = stones[stones.length - 1];
+
+            // 检查第一端之前的位置
+            const end1Row = firstStone.row - dr;
+            const end1Col = firstStone.col - dc;
+            if (end1Row >= 0 && end1Row < 15 && end1Col >= 0 && end1Col < 15 &&
+                board[end1Row][end1Col] === null) {
+                defensePoints.push({ row: end1Row, col: end1Col, type: 'end1' });
+            }
+
+            // 检查最后一端之后的位置
+            const end2Row = lastStone.row + dr;
+            const end2Col = lastStone.col + dc;
+            if (end2Row >= 0 && end2Row < 15 && end2Col >= 0 && end2Col < 15 &&
+                board[end2Row][end2Col] === null) {
+                defensePoints.push({ row: end2Row, col: end2Col, type: 'end2' });
+            }
+        }
+
+        aiLog('[AI] findLiveFourBlockPosition: Found defense points:', defensePoints);
+
+        // 评估每个防守点，选择最佳的
+        let bestPosition = null;
+        let bestScore = -Infinity;
+
+        for (const pos of defensePoints) {
+            if (!this.game.canPlaceStone(pos.row, pos.col)) continue;
+
+            // 模拟落子
+            board[pos.row][pos.col] = this.player;
+            const opponentNewThreats = LineDetector.detectThreats(board, opponent, this.game, { includePotentialThree: false });
+            const myNewThreats = LineDetector.detectThreats(board, this.player, this.game, { includePotentialThree: false });
+            board[pos.row][pos.col] = null;
+
+            let score = 0;
+
+            // 防守效果（最高优先级）
+            const liveFourBlocked = opponentThreats.liveFour.length - opponentNewThreats.liveFour.length;
+            score += liveFourBlocked * 100000;
+
+            // 进攻性防守：自己能否形成威胁
+            score += myNewThreats.liveFour.length * 10000;
+            score += myNewThreats.rushFour.length * 5000;
+            score += myNewThreats.liveThree.length * 1000;
+
+            // 位置价值
+            score += LineDetector.getPositionValue(pos.row, pos.col);
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestPosition = pos;
             }
         }
 
@@ -3731,56 +3700,93 @@ if (typeof GomokuAI === 'undefined') {
     }
 
     /**
-     * 找到防守对方冲四的位置
+     * 找到防守对方冲四的位置 - 改进版
+     * 冲四只有一端开放，防守方必须堵住那一端
      */
     findRushFourBlockPosition(opponentThreats) {
         const board = this.game.board;
         const opponent = this.getOpponent();
-        let bestPosition = null;
-        let bestScore = -Infinity;
 
         aiLog('[AI] findRushFourBlockPosition: opponentThreats.rushFour =', opponentThreats.rushFour);
 
-        // 遍历对方的所有冲四威胁
+        if (opponentThreats.rushFour.length === 0) return null;
+
+        // 收集所有需要防守的点
+        const defensePoints = [];
+
         for (const threat of opponentThreats.rushFour) {
             const { startRow, startCol, dr, dc } = threat;
             aiLog('[AI] findRushFourBlockPosition: Checking threat at', startRow, startCol, 'direction', dr, dc);
 
-            // 找到这个威胁线上的防守位置
-            for (let i = -4; i <= 4; i++) {
-                const row = startRow + dr * i;
-                const col = startCol + dc * i;
-
-                if (row < 0 || row >= 15 || col < 0 || col >= 15) continue;
-                if (board[row][col] !== null) continue;
-                if (!this.game.canPlaceStone(row, col)) continue;
-
-                // 评估这个位置的防守价值
-                let score = 0;
-
-                // 在这个位置由AI落子，检查是否能阻止对方冲四
-                board[row][col] = this.player;
-                const opponentNewThreats = LineDetector.detectThreats(board, opponent, this.game, { includePotentialThree: false });
-                const myNewThreats = LineDetector.detectThreats(board, this.player, this.game, { includePotentialThree: false });
-                board[row][col] = null;
-
-                // 如果落子后对方冲四数量减少，说明这个位置是有效的防守位置
-                const rushFourReduced = opponentThreats.rushFour.length - opponentNewThreats.rushFour.length;
-                score += rushFourReduced * 10000;
-                score += (opponentThreats.liveFour.length - opponentNewThreats.liveFour.length) * 50000;
-                score += (opponentThreats.liveThree.length - opponentNewThreats.liveThree.length) * 1000;
-
-                // 同时也要考虑是否能形成新的冲四（进攻性防守）
-                score += myNewThreats.rushFour.length * 5000;
-                score += myNewThreats.liveThree.length * 1000;
-
-                // 位置价值
-                score += LineDetector.getPositionValue(row, col);
-
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestPosition = { row, col };
+            // 找到冲四的连续棋子
+            const stones = [];
+            for (let i = -3; i <= 3; i++) {
+                const r = startRow + dr * i;
+                const c = startCol + dc * i;
+                if (r >= 0 && r < 15 && c >= 0 && c < 15 && board[r][c] === opponent) {
+                    stones.push({ row: r, col: c });
                 }
+            }
+
+            if (stones.length < 4) continue;
+
+            const firstStone = stones[0];
+            const lastStone = stones[stones.length - 1];
+
+            // 检查第一端
+            const end1Row = firstStone.row - dr;
+            const end1Col = firstStone.col - dc;
+            const end1Valid = end1Row >= 0 && end1Row < 15 && end1Col >= 0 && end1Col < 15;
+
+            // 检查最后一端
+            const end2Row = lastStone.row + dr;
+            const end2Col = lastStone.col + dc;
+            const end2Valid = end2Row >= 0 && end2Row < 15 && end2Col >= 0 && end2Col < 15;
+
+            // 冲四只有一个开放端，找到它
+            if (end1Valid && board[end1Row][end1Col] === null) {
+                // 检查另一端是否被堵住
+                if (!end2Valid || board[end2Row][end2Col] !== null) {
+                    defensePoints.push({ row: end1Row, col: end1Col });
+                }
+            }
+            if (end2Valid && board[end2Row][end2Col] === null) {
+                // 检查另一端是否被堵住
+                if (!end1Valid || board[end1Row][end1Col] !== null) {
+                    defensePoints.push({ row: end2Row, col: end2Col });
+                }
+            }
+        }
+
+        // 评估每个防守点
+        let bestPosition = null;
+        let bestScore = -Infinity;
+
+        for (const pos of defensePoints) {
+            if (!this.game.canPlaceStone(pos.row, pos.col)) continue;
+
+            board[pos.row][pos.col] = this.player;
+            const opponentNewThreats = LineDetector.detectThreats(board, opponent, this.game, { includePotentialThree: false });
+            const myNewThreats = LineDetector.detectThreats(board, this.player, this.game, { includePotentialThree: false });
+            board[pos.row][pos.col] = null;
+
+            let score = 0;
+
+            // 防守效果
+            const rushFourBlocked = opponentThreats.rushFour.length - opponentNewThreats.rushFour.length;
+            score += rushFourBlocked * 10000;
+
+            // 进攻性防守
+            score += myNewThreats.liveFour.length * 10000;
+            score += myNewThreats.rushFour.length * 5000;
+            score += myNewThreats.liveThree.length * 1000;
+
+            // 位置价值
+            score += LineDetector.getPositionValue(pos.row, pos.col);
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestPosition = pos;
             }
         }
 
@@ -4015,10 +4021,385 @@ if (typeof GomokuAI === 'undefined') {
     }
 
     /**
+     * AlphaBeta搜索 - 用于深度思考
+     */
+    alphaBetaSearch(maxDepth = 3) {
+        const board = this.game.board;
+        const candidates = this.getSortedCandidates();
+
+        if (candidates.length === 0) return null;
+
+        let bestMove = null;
+        let bestScore = -Infinity;
+
+        for (const move of candidates.slice(0, 12)) { // 只搜索前12个最佳候选
+            // 模拟落子
+            board[move.row][move.col] = this.player;
+
+            // 检查是否立即获胜
+            if (this.game.checkWin(move.row, move.col)) {
+                board[move.row][move.col] = null;
+                return { ...move, score: 1000000 };
+            }
+
+            // AlphaBeta搜索
+            const score = this.alphaBeta(
+                maxDepth - 1,
+                -Infinity,
+                Infinity,
+                false,
+                this.getOpponent()
+            );
+
+            board[move.row][move.col] = null;
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = { ...move, score };
+            }
+        }
+
+        return bestMove;
+    }
+
+    /**
+     * AlphaBeta递归搜索
+     */
+    alphaBeta(depth, alpha, beta, isMaximizing, currentPlayer) {
+        const board = this.game.board;
+
+        // 终止条件
+        if (depth === 0) {
+            return this.evaluateBoardAdvanced();
+        }
+
+        // 检查是否已有胜利
+        const lastMove = this.game.moveHistory[this.game.moveHistory.length - 1];
+        if (lastMove && this.game.checkWin(lastMove.row, lastMove.col)) {
+            return lastMove.player === this.player ? -1000000 : 1000000;
+        }
+
+        const candidates = this.getSortedCandidates().slice(0, 8);
+
+        if (isMaximizing) {
+            let maxEval = -Infinity;
+            for (const move of candidates) {
+                if (!this.game.canPlaceStone(move.row, move.col)) continue;
+
+                board[move.row][move.col] = currentPlayer;
+                const evalScore = this.alphaBeta(depth - 1, alpha, beta, false, this.getOpponent());
+                board[move.row][move.col] = null;
+
+                maxEval = Math.max(maxEval, evalScore);
+                alpha = Math.max(alpha, evalScore);
+                if (beta <= alpha) break;
+            }
+            return maxEval;
+        } else {
+            let minEval = Infinity;
+            const opponent = this.getOpponent();
+            for (const move of candidates) {
+                if (!this.game.canPlaceStone(move.row, move.col)) continue;
+
+                board[move.row][move.col] = currentPlayer;
+                const evalScore = this.alphaBeta(depth - 1, alpha, beta, true, opponent);
+                board[move.row][move.col] = null;
+
+                minEval = Math.min(minEval, evalScore);
+                beta = Math.min(beta, evalScore);
+                if (beta <= alpha) break;
+            }
+            return minEval;
+        }
+    }
+
+    /**
+     * 获取排序后的候选位置（按启发式价值）
+     */
+    getSortedCandidates() {
+        const board = this.game.board;
+        const candidates = LineDetector.getCandidatePositions(board, this.game);
+
+        // 为每个位置评分并排序
+        const scored = candidates.map(pos => {
+            let score = 0;
+
+            // 位置基础价值
+            score += LineDetector.getPositionValue(pos.row, pos.col);
+
+            // 己方落子价值
+            board[pos.row][pos.col] = this.player;
+            const myThreats = LineDetector.detectThreats(board, this.player, this.game, { includePotentialThree: false });
+            board[pos.row][pos.col] = null;
+
+            score += myThreats.liveFour.length * 10000;
+            score += myThreats.rushFour.length * 5000;
+            score += myThreats.liveThree.length * 1000;
+
+            // 对方落子价值（防守价值）
+            board[pos.row][pos.col] = this.getOpponent();
+            const oppThreats = LineDetector.detectThreats(board, this.getOpponent(), this.game, { includePotentialThree: false });
+            board[pos.row][pos.col] = null;
+
+            score += oppThreats.liveFour.length * 9000;
+            score += oppThreats.rushFour.length * 4500;
+            score += oppThreats.liveThree.length * 900;
+
+            return { ...pos, score };
+        });
+
+        scored.sort((a, b) => b.score - a.score);
+        return scored;
+    }
+
+    /**
+     * 高级局面评估
+     */
+    evaluateBoardAdvanced() {
+        const board = this.game.board;
+        const myThreats = LineDetector.detectThreats(board, this.player, this.game, { includePotentialThree: false });
+        const opponentThreats = LineDetector.detectThreats(board, this.getOpponent(), this.game, { includePotentialThree: false });
+
+        let score = 0;
+
+        // 威胁评分（己方威胁为正，对方威胁为负）
+        score += myThreats.win.length * 100000;
+        score += myThreats.liveFour.length * 10000;
+        score += myThreats.rushFour.length * 5000;
+        score += myThreats.liveThree.length * 1000;
+        score += myThreats.sleepThree.length * 300;
+        score += myThreats.liveTwo.length * 100;
+
+        score -= opponentThreats.win.length * 100000;
+        score -= opponentThreats.liveFour.length * 10000;
+        score -= opponentThreats.rushFour.length * 5000;
+        score -= opponentThreats.liveThree.length * 1000;
+        score -= opponentThreats.sleepThree.length * 300;
+        score -= opponentThreats.liveTwo.length * 100;
+
+        // 多个威胁的加成（双杀优势）
+        if (myThreats.liveThree.length >= 2) score += 2000;
+        if (opponentThreats.liveThree.length >= 2) score -= 2000;
+
+        return score;
+    }
+
+    /**
      * 获取对手
      */
     getOpponent() {
         return this.player === 'black' ? 'white' : 'black';
+    }
+
+    /**
+     * 寻找双杀局面的防守点（能同时防守两个威胁）
+     */
+    findDoubleDefensePosition(opponentThreats, opponent) {
+        const board = this.game.board;
+        const candidates = LineDetector.getCandidatePositions(board, this.game);
+
+        for (const pos of candidates) {
+            if (!this.game.canPlaceStone(pos.row, pos.col)) continue;
+
+            // 模拟落子
+            board[pos.row][pos.col] = this.player;
+            const newThreats = LineDetector.detectThreats(board, opponent, this.game, { includePotentialThree: false });
+            board[pos.row][pos.col] = null;
+
+            // 检查是否同时消除了多个威胁
+            const rushFourBlocked = opponentThreats.rushFour.length - newThreats.rushFour.length;
+            const liveThreeBlocked = opponentThreats.liveThree.length - newThreats.liveThree.length;
+
+            // 如果能防守至少两个威胁，或消除了所有威胁
+            if (rushFourBlocked + liveThreeBlocked >= 2 || 
+                (newThreats.rushFour.length === 0 && newThreats.liveFour.length === 0)) {
+                return pos;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 寻找双杀机会（制造两个同时存在的威胁）
+     */
+    findDoubleAttackPosition(myThreats, opponentThreats) {
+        const board = this.game.board;
+        const candidates = LineDetector.getCandidatePositions(board, this.game);
+
+        for (const pos of candidates) {
+            if (!this.game.canPlaceStone(pos.row, pos.col)) continue;
+
+            board[pos.row][pos.col] = this.player;
+            const newThreats = LineDetector.detectThreats(board, this.player, this.game, { includePotentialThree: false });
+            board[pos.row][pos.col] = null;
+
+            // 检查是否形成多个活三/冲四
+            const totalThreats = newThreats.liveFour.length + newThreats.rushFour.length + newThreats.liveThree.length;
+            const threatIncrease = totalThreats - (myThreats.liveFour.length + myThreats.rushFour.length + myThreats.liveThree.length);
+
+            // 如果新增两个或以上威胁，形成双杀
+            if (threatIncrease >= 2 && newThreats.liveThree.length >= 2) {
+                return pos;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 寻找最佳活三防守点（优先选择能同时形成自己威胁的位置）
+     */
+    findBestLiveThreeBlock(opponentThreats, opponent) {
+        const board = this.game.board;
+        let bestPos = null;
+        let bestScore = -Infinity;
+
+        // 收集所有需要防守的活三端点
+        const defensePoints = new Map();
+
+        for (const threat of opponentThreats.liveThree) {
+            const { startRow, startCol, dr, dc } = threat;
+
+            // 找到活三的两个端点
+            let end1Row = startRow, end1Col = startCol;
+            let end2Row = startRow, end2Col = startCol;
+
+            // 向前延伸找到端点
+            for (let i = 0; i < 4; i++) {
+                const r = startRow + dr * i;
+                const c = startCol + dc * i;
+                if (r >= 0 && r < 15 && c >= 0 && c < 15) {
+                    if (board[r][c] === opponent) {
+                        end1Row = r;
+                        end1Col = c;
+                    } else if (board[r][c] === null) {
+                        // 记录空位端点
+                        const key = `${r},${c}`;
+                        defensePoints.set(key, { row: r, col: c });
+                    }
+                }
+            }
+
+            // 向后延伸找到端点
+            for (let i = 1; i < 4; i++) {
+                const r = startRow - dr * i;
+                const c = startCol - dc * i;
+                if (r >= 0 && r < 15 && c >= 0 && c < 15 && board[r][c] === null) {
+                    const key = `${r},${c}`;
+                    defensePoints.set(key, { row: r, col: c });
+                }
+            }
+        }
+
+        // 评估每个防守点
+        for (const pos of defensePoints.values()) {
+            if (!this.game.canPlaceStone(pos.row, pos.col)) continue;
+
+            let score = 0;
+
+            // 模拟AI落子
+            board[pos.row][pos.col] = this.player;
+            const myNewThreats = LineDetector.detectThreats(board, this.player, this.game, { includePotentialThree: false });
+            const oppNewThreats = LineDetector.detectThreats(board, opponent, this.game, { includePotentialThree: false });
+            board[pos.row][pos.col] = null;
+
+            // 防守效果
+            const blockedThrees = opponentThreats.liveThree.length - oppNewThreats.liveThree.length;
+            score += blockedThrees * 5000;
+
+            // 进攻价值：自己能形成什么威胁
+            score += myNewThreats.liveFour.length * 3000;
+            score += myNewThreats.rushFour.length * 1500;
+            score += myNewThreats.liveThree.length * 500;
+
+            // 位置价值
+            score += LineDetector.getPositionValue(pos.row, pos.col);
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestPos = pos;
+            }
+        }
+
+        return bestPos;
+    }
+
+    /**
+     * 寻找活三的最佳延伸点
+     */
+    findLiveThreeExtension(myThreats, opponentThreats) {
+        const board = this.game.board;
+        let bestPos = null;
+        let bestScore = -Infinity;
+
+        for (const threat of myThreats.liveThree) {
+            const { startRow, startCol, dr, dc } = threat;
+
+            // 检查两个延伸方向
+            const directions = [
+                { r: startRow + dr * 3, c: startCol + dc * 3 },
+                { r: startRow - dr, c: startCol - dc }
+            ];
+
+            for (const dir of directions) {
+                const { r, c } = dir;
+                if (r < 0 || r >= 15 || c < 0 || c >= 15) continue;
+                if (board[r][c] !== null) continue;
+                if (!this.game.canPlaceStone(r, c)) continue;
+
+                // 评估这个位置
+                board[r][c] = this.player;
+                const newThreats = LineDetector.detectThreats(board, this.player, this.game, { includePotentialThree: false });
+                const oppNewThreats = LineDetector.detectThreats(board, this.getOpponent(), this.game, { includePotentialThree: false });
+                board[r][c] = null;
+
+                let score = 0;
+
+                // 是否能形成活四
+                if (newThreats.liveFour.length > myThreats.liveFour.length) {
+                    score += 10000;
+                }
+                // 是否能形成冲四
+                if (newThreats.rushFour.length > myThreats.rushFour.length) {
+                    score += 5000;
+                }
+
+                // 是否会帮助对方形成威胁（给对方创造机会）
+                score -= oppNewThreats.liveThree.length * 1000;
+
+                // 位置价值
+                score += LineDetector.getPositionValue(r, c);
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestPos = { row: r, col: c };
+                }
+            }
+        }
+
+        return bestPos;
+    }
+
+    /**
+     * 寻找能制造活三的位置
+     */
+    findCreateLiveThreePosition(player) {
+        const board = this.game.board;
+
+        // 获取候选位置（优化：只检查已有棋子周围）
+        const candidates = LineDetector.getCandidatePositions(board, this.game);
+
+        for (const pos of candidates) {
+            if (!this.game.canPlaceStone(pos.row, pos.col)) continue;
+
+            board[pos.row][pos.col] = player;
+            const threats = LineDetector.detectThreats(board, player, this.game, { includePotentialThree: false });
+            board[pos.row][pos.col] = null;
+
+            if (threats.liveThree.length > 0) {
+                return pos;
+            }
+        }
+        return null;
     }
 
     /**
