@@ -440,23 +440,23 @@ if (typeof LineDetector === 'undefined') {
      * 位置价值评分表（15x15）
      */
     static getPositionValue(row, col) {
+        // 对称棋盘位置价值表（15x15），围绕中心(7,7)对称
         const valueTable = [
-            [3, 8, 12, 15, 18, 20, 22, 20, 18, 15, 12, 8, 5, 3, 2],
-            [8, 20, 30, 40, 50, 60, 70, 60, 50, 40, 30, 20, 12, 8, 5],
-            [12, 30, 50, 70, 90, 110, 120, 110, 90, 70, 50, 30, 12, 8, 5],
-            [15, 40, 70, 100, 130, 150, 160, 150, 130, 100, 70, 40, 15, 12, 8],
-            [18, 50, 90, 130, 160, 180, 200, 180, 160, 130, 90, 50, 18, 15, 12],
-            [20, 60, 110, 150, 180, 220, 240, 220, 180, 150, 110, 60, 20, 18, 15],
-            [22, 70, 120, 160, 200, 240, 280, 240, 200, 160, 120, 70, 22, 20, 18],
-            [20, 60, 110, 150, 180, 220, 240, 220, 180, 150, 110, 60, 20, 18, 15],
-            [18, 50, 90, 130, 160, 180, 200, 180, 160, 130, 90, 50, 18, 15, 12],
-            [15, 40, 70, 100, 130, 150, 160, 150, 130, 100, 70, 40, 15, 12, 8],
-            [12, 30, 50, 70, 90, 110, 120, 110, 90, 70, 50, 30, 12, 8, 5],
-            [8, 20, 30, 40, 50, 60, 70, 60, 50, 40, 30, 20, 12, 8, 5],
-            [5, 12, 20, 30, 40, 50, 60, 50, 40, 30, 20, 12, 8, 5, 3],
-            [3, 8, 12, 15, 18, 20, 22, 20, 18, 15, 12, 8, 5, 3, 2],
-            [2, 5, 8, 12, 15, 18, 20, 18, 15, 12, 8, 5, 3, 2, 1],
-            [1, 2, 5, 8, 12, 15, 18, 15, 12, 8, 5, 2, 1, 1, 0],
+            [ 2,  5,  8, 12, 15, 18, 20, 22, 20, 18, 15, 12,  8,  5,  2],
+            [ 5, 12, 20, 30, 40, 50, 60, 70, 60, 50, 40, 30, 20, 12,  5],
+            [ 8, 20, 30, 50, 70, 90,110,120,110, 90, 70, 50, 30, 20,  8],
+            [12, 30, 50, 70,100,130,150,160,150,130,100, 70, 50, 30, 12],
+            [15, 40, 70,100,130,160,180,200,180,160,130,100, 70, 40, 15],
+            [18, 50, 90,130,160,180,220,240,220,180,160,130, 90, 50, 18],
+            [20, 60,110,150,180,220,240,280,240,220,180,150,110, 60, 20],
+            [22, 70,120,160,200,240,280,300,280,240,200,160,120, 70, 22],
+            [20, 60,110,150,180,220,240,280,240,220,180,150,110, 60, 20],
+            [18, 50, 90,130,160,180,220,240,220,180,160,130, 90, 50, 18],
+            [15, 40, 70,100,130,160,180,200,180,160,130,100, 70, 40, 15],
+            [12, 30, 50, 70,100,130,150,160,150,130,100, 70, 50, 30, 12],
+            [ 8, 20, 30, 50, 70, 90,110,120,110, 90, 70, 50, 30, 20,  8],
+            [ 5, 12, 20, 30, 40, 50, 60, 70, 60, 50, 40, 30, 20, 12,  5],
+            [ 2,  5,  8, 12, 15, 18, 20, 22, 20, 18, 15, 12,  8,  5,  2],
         ];
 
         if (row >= 0 && row < 15 && col >= 0 && col < 15) {
@@ -843,9 +843,9 @@ if (typeof AlphaBetaSearch === 'undefined') {
         const board = this.game.board;
         let key = `${depth}-${isMaximizing}`;
 
-        // 添加棋盘状态（简化版）
-        for (let row = 0; row < 15; row += 2) {
-            for (let col = 0; col < 15; col += 2) {
+        // 添加棋盘状态（采样每行，减少碰撞）
+        for (let row = 0; row < 15; row++) {
+            for (let col = 0; col < 15; col++) {
                 if (board[row][col] !== null) {
                     key += `${row}${col}${board[row][col]}`;
                 }
@@ -4073,11 +4073,8 @@ if (typeof GomokuAI === 'undefined') {
             return this.evaluateBoardAdvanced();
         }
 
-        // 检查是否已有胜利
-        const lastMove = this.game.moveHistory[this.game.moveHistory.length - 1];
-        if (lastMove && this.game.checkWin(lastMove.row, lastMove.col)) {
-            return lastMove.player === this.player ? -1000000 : 1000000;
-        }
+        // 正确交替玩家：下一步应该是当前玩家的对手
+        const nextPlayer = currentPlayer === this.player ? this.getOpponent() : this.player;
 
         const candidates = this.getSortedCandidates().slice(0, 8);
 
@@ -4087,7 +4084,12 @@ if (typeof GomokuAI === 'undefined') {
                 if (!this.game.canPlaceStone(move.row, move.col)) continue;
 
                 board[move.row][move.col] = currentPlayer;
-                const evalScore = this.alphaBeta(depth - 1, alpha, beta, false, this.getOpponent());
+                // 检查模拟落子是否获胜
+                if (this.game.checkWin(move.row, move.col)) {
+                    board[move.row][move.col] = null;
+                    return currentPlayer === this.player ? 1000000 + depth : -1000000 - depth;
+                }
+                const evalScore = this.alphaBeta(depth - 1, alpha, beta, false, nextPlayer);
                 board[move.row][move.col] = null;
 
                 maxEval = Math.max(maxEval, evalScore);
@@ -4097,12 +4099,16 @@ if (typeof GomokuAI === 'undefined') {
             return maxEval;
         } else {
             let minEval = Infinity;
-            const opponent = this.getOpponent();
             for (const move of candidates) {
                 if (!this.game.canPlaceStone(move.row, move.col)) continue;
 
                 board[move.row][move.col] = currentPlayer;
-                const evalScore = this.alphaBeta(depth - 1, alpha, beta, true, opponent);
+                // 检查模拟落子是否获胜
+                if (this.game.checkWin(move.row, move.col)) {
+                    board[move.row][move.col] = null;
+                    return currentPlayer === this.player ? 1000000 + depth : -1000000 - depth;
+                }
+                const evalScore = this.alphaBeta(depth - 1, alpha, beta, true, nextPlayer);
                 board[move.row][move.col] = null;
 
                 minEval = Math.min(minEval, evalScore);
@@ -4233,13 +4239,25 @@ if (typeof GomokuAI === 'undefined') {
             const newThreats = LineDetector.detectThreats(board, this.player, this.game, { includePotentialThree: false });
             board[pos.row][pos.col] = null;
 
-            // 检查是否形成多个活三/冲四
-            const totalThreats = newThreats.liveFour.length + newThreats.rushFour.length + newThreats.liveThree.length;
-            const threatIncrease = totalThreats - (myThreats.liveFour.length + myThreats.rushFour.length + myThreats.liveThree.length);
+            // 检查是否形成多个活三/冲四/活四组合（双杀）
+            const newLiveFour = newThreats.liveFour.length;
+            const newRushFour = newThreats.rushFour.length;
+            const newLiveThree = newThreats.liveThree.length;
+            const totalNewThreats = newLiveFour + newRushFour + newLiveThree;
+            const totalOldThreats = myThreats.liveFour.length + myThreats.rushFour.length + myThreats.liveThree.length;
+            const threatIncrease = totalNewThreats - totalOldThreats;
 
-            // 如果新增两个或以上威胁，形成双杀
-            if (threatIncrease >= 2 && newThreats.liveThree.length >= 2) {
-                return pos;
+            // 双杀条件：新增威胁>=2，且包含至少两种不同类型或同类型>=2
+            // 覆盖：双活三、冲四+活三、活四+任意、双冲四等
+            if (threatIncrease >= 2) {
+                // 活四 = 必胜（对方只能堵一端），直接算双杀
+                if (newLiveFour > myThreats.liveFour.length) return pos;
+                // 冲四+活三 = 对方无法同时防守
+                if (newRushFour > myThreats.rushFour.length && newLiveThree > myThreats.liveThree.length) return pos;
+                // 双活三
+                if (newLiveThree >= 2 && newLiveThree > myThreats.liveThree.length) return pos;
+                // 双冲四
+                if (newRushFour >= 2 && newRushFour > myThreats.rushFour.length) return pos;
             }
         }
         return null;
@@ -4664,12 +4682,12 @@ if (typeof GomokuAI === 'undefined') {
 // ==================== 导出 ====================
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
-        GomokuAI,
-        LineDetector,
-        AlphaBetaSearch,
-        OpeningBook,
-        ThreatSpaceSearch,
-        SkillComboSystem,
+        GomokuAI: window.GomokuAI,
+        LineDetector: window.LineDetector,
+        AlphaBetaSearch: window.AlphaBetaSearch,
+        OpeningBook: window.OpeningBook,
+        ThreatSpaceSearch: window.ThreatSpaceSearch,
+        SkillComboSystem: window.SkillComboSystem,
         AI_CONFIG,
         SKILL_VALUE,
         SKILL_COMBOS,
