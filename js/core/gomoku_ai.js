@@ -184,7 +184,7 @@ if (typeof LineDetector === 'undefined') {
                 if (board[row][col] !== player) continue;
 
                 for (const [dr, dc] of [[0, 1], [1, 0], [1, 1], [1, -1]]) {
-                    const lineKey = this.getLineKey(row, col, dr, dc);
+                    const lineKey = this.getLineKey(row, col, dr, dc, board, player);
                     if (processed.has(lineKey)) continue;
 
                     const result = this.countLine(board, row, col, dr, dc, player);
@@ -307,15 +307,20 @@ if (typeof LineDetector === 'undefined') {
 
     /**
      * 生成连线的唯一标识
+     * 回溯到当前连续棋子组的起点，而不是棋盘边缘
+     * 这样同一行/列/对角线上的不同棋子组会有不同的key
      */
-    static getLineKey(row, col, dr, dc) {
+    static getLineKey(row, col, dr, dc, board, player) {
         let r = row, c = col;
-        while (r >= 0 && r < 15 && c >= 0 && c < 15) {
-            r -= dr;
-            c -= dc;
+        // 回溯到当前连续同色棋子组的第一个棋子
+        while (true) {
+            const prevR = r - dr;
+            const prevC = c - dc;
+            if (prevR < 0 || prevR >= 15 || prevC < 0 || prevC >= 15) break;
+            if (board[prevR][prevC] !== player) break;
+            r = prevR;
+            c = prevC;
         }
-        r += dr;
-        c += dc;
         return `${r},${c},${dr},${dc}`;
     }
 
@@ -2379,21 +2384,14 @@ if (typeof GomokuAI === 'undefined') {
             return { action: 'place', row: myDoubleAttack.row, col: myDoubleAttack.col };
         }
 
-        // ========== 第3优先级：冲四 ==========
-        // 对方有冲四 - 需要防守
+        // ========== 第3优先级：冲四防守 ==========
+        // 对方有冲四 - 必须防守（冲四下一步就是五连）
         if (opponentThreats.rushFour.length > 0) {
             const blockPos = this.findRushFourBlockPosition(opponentThreats);
             if (blockPos) {
                 aiLog('[AI] Hard: Blocking rush four at', blockPos.row, blockPos.col);
                 return { action: 'place', row: blockPos.row, col: blockPos.col };
             }
-        }
-
-        // 自己制造冲四
-        const rushFourPos = this.findRushFourPosition(this.player);
-        if (rushFourPos) {
-            aiLog('[AI] Hard: Creating rush four');
-            return { action: 'place', row: rushFourPos.row, col: rushFourPos.col };
         }
 
         // ========== 第4优先级：开局策略 ==========
@@ -2433,6 +2431,13 @@ if (typeof GomokuAI === 'undefined') {
             }
         }
 
+        // 自己制造冲四（在防守完活三后再考虑进攻性冲四）
+        const rushFourPos = this.findRushFourPosition(this.player);
+        if (rushFourPos) {
+            aiLog('[AI] Hard: Creating rush four');
+            return { action: 'place', row: rushFourPos.row, col: rushFourPos.col };
+        }
+
         // 发展自己的活三
         if (myThreats.liveThree.length > 0) {
             const extendPos = this.findLiveThreeExtension(myThreats, opponentThreats);
@@ -2450,10 +2455,10 @@ if (typeof GomokuAI === 'undefined') {
         }
 
         // ========== 第6优先级：深度搜索 ==========
-        // 使用AlphaBeta搜索寻找最佳位置
+        // 使用AlphaBeta搜索寻找最佳位置（深度搜索结果优于浅层评估，始终采纳）
         const searchResult = this.alphaBetaSearch(3);
-        if (searchResult && searchResult.score > 1000) {
-            aiLog('[AI] Hard: AlphaBeta found good move with score', searchResult.score);
+        if (searchResult) {
+            aiLog('[AI] Hard: AlphaBeta found move with score', searchResult.score);
             return { action: 'place', row: searchResult.row, col: searchResult.col };
         }
 
@@ -3677,26 +3682,43 @@ if (typeof GomokuAI === 'undefined') {
     }
 
     /**
-     * 找到冲四的位置
+     * 找到冲四的位置 - 评估所有候选，选择最佳
      */
     findRushFourPosition(player) {
         const board = this.game.board;
+        const opponent = player === 'black' ? 'white' : 'black';
+        const candidates = LineDetector.getCandidatePositions(board, this.game);
+        let bestPos = null;
+        let bestScore = -Infinity;
 
-        for (let row = 0; row < 15; row++) {
-            for (let col = 0; col < 15; col++) {
-                if (board[row][col] !== null) continue;
-                if (!this.game.canPlaceStone(row, col)) continue;
+        for (const pos of candidates) {
+            if (!this.game.canPlaceStone(pos.row, pos.col)) continue;
 
-                board[row][col] = player;
-                const threats = LineDetector.detectThreats(board, player, this.game, { includePotentialThree: false });
-                board[row][col] = null;
+            board[pos.row][pos.col] = player;
+            const myThreats = LineDetector.detectThreats(board, player, this.game, { includePotentialThree: false });
+            board[pos.row][pos.col] = null;
 
-                if (threats.rushFour.length > 0) {
-                    return { row, col };
+            if (myThreats.rushFour.length > 0) {
+                let score = myThreats.rushFour.length * 5000;
+                score += myThreats.liveThree.length * 1000;
+                score += myThreats.liveFour.length * 10000;
+
+                // 额外奖励：同时阻挡对手威胁的冲四
+                board[pos.row][pos.col] = opponent;
+                const oppThreats = LineDetector.detectThreats(board, opponent, this.game, { includePotentialThree: false });
+                board[pos.row][pos.col] = null;
+                score += oppThreats.liveThree.length * 800;
+                score += oppThreats.rushFour.length * 4000;
+
+                score += LineDetector.getPositionValue(pos.row, pos.col);
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestPos = pos;
                 }
             }
         }
-        return null;
+        return bestPos;
     }
 
     /**
@@ -3862,21 +3884,22 @@ if (typeof GomokuAI === 'undefined') {
             const myMultiDirBonus = this.countMultiDirectionThreats(myNewThreats);
             score += myMultiDirBonus * 500;
 
-            // 2. 评估对方落子后的威胁变化（防守）
-            board[pos.row][pos.col] = opponent;
-            const opponentNewThreats = LineDetector.detectThreats(board, opponent, this.game, { includePotentialThree: false });
+            // 2. 评估我方落子后对方威胁的减少（防守价值）
+            // 模拟AI落子，测量能消除多少对手威胁
+            board[pos.row][pos.col] = this.player;
+            const oppThreatsAfterMyMove = LineDetector.detectThreats(board, opponent, this.game, { includePotentialThree: false });
             board[pos.row][pos.col] = null;
 
-            // 阻止对方的威胁
-            score += (opponentThreats.liveFour.length - opponentNewThreats.liveFour.length) * 9000;
-            score += (opponentThreats.rushFour.length - opponentNewThreats.rushFour.length) * 4500;
-            score += (opponentThreats.liveThree.length - opponentNewThreats.liveThree.length) * 900;
-            score += (opponentThreats.sleepThree.length - opponentNewThreats.sleepThree.length) * 180;
-            score += (opponentThreats.liveTwo.length - opponentNewThreats.liveTwo.length) * 80;
+            // 落子后对方威胁减少 = 防守价值
+            score += (opponentThreats.liveFour.length - oppThreatsAfterMyMove.liveFour.length) * 9000;
+            score += (opponentThreats.rushFour.length - oppThreatsAfterMyMove.rushFour.length) * 4500;
+            score += (opponentThreats.liveThree.length - oppThreatsAfterMyMove.liveThree.length) * 900;
+            score += (opponentThreats.sleepThree.length - oppThreatsAfterMyMove.sleepThree.length) * 180;
+            score += (opponentThreats.liveTwo.length - oppThreatsAfterMyMove.liveTwo.length) * 80;
 
             // 对方多方向威胁的防守价值
             const opponentOldMultiDir = this.countMultiDirectionThreats(opponentThreats);
-            const opponentNewMultiDir = this.countMultiDirectionThreats(opponentNewThreats);
+            const opponentNewMultiDir = this.countMultiDirectionThreats(oppThreatsAfterMyMove);
             score += (opponentOldMultiDir - opponentNewMultiDir) * 450;
 
             // 3. 位置价值（中心位置更有价值）
@@ -4398,26 +4421,45 @@ if (typeof GomokuAI === 'undefined') {
     }
 
     /**
-     * 寻找能制造活三的位置
+     * 寻找能制造活三的位置 - 评估所有候选，选择最佳
      */
     findCreateLiveThreePosition(player) {
         const board = this.game.board;
-
-        // 获取候选位置（优化：只检查已有棋子周围）
+        const opponent = player === 'black' ? 'white' : 'black';
         const candidates = LineDetector.getCandidatePositions(board, this.game);
+        let bestPos = null;
+        let bestScore = -Infinity;
 
         for (const pos of candidates) {
             if (!this.game.canPlaceStone(pos.row, pos.col)) continue;
 
             board[pos.row][pos.col] = player;
-            const threats = LineDetector.detectThreats(board, player, this.game, { includePotentialThree: false });
+            const myThreats = LineDetector.detectThreats(board, player, this.game, { includePotentialThree: false });
             board[pos.row][pos.col] = null;
 
-            if (threats.liveThree.length > 0) {
-                return pos;
+            if (myThreats.liveThree.length > 0) {
+                let score = myThreats.liveThree.length * 1000;
+                // 奖励同时形成多个威胁的位置（双杀潜力）
+                score += myThreats.rushFour.length * 5000;
+                score += myThreats.sleepThree.length * 200;
+                score += myThreats.liveTwo.length * 100;
+
+                // 奖励同时阻挡对手威胁的位置
+                board[pos.row][pos.col] = opponent;
+                const oppThreats = LineDetector.detectThreats(board, opponent, this.game, { includePotentialThree: false });
+                board[pos.row][pos.col] = null;
+                score += oppThreats.liveThree.length * 800;
+                score += oppThreats.rushFour.length * 4000;
+
+                score += LineDetector.getPositionValue(pos.row, pos.col);
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestPos = pos;
+                }
             }
         }
-        return null;
+        return bestPos;
     }
 
     /**
