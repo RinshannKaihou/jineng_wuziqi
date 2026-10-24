@@ -100,6 +100,25 @@ class GomokuGame {
         this.state = JSON.parse(snapshot);
     }
 
+    /** 试走：执行 fn 后把对局完全还原（含悔棋记录、选中的技能、飘字），返回 fn 的结果。供 AI 推演 */
+    trial(fn) {
+        const saved = {
+            state: this.snapshot(), history: this.history.length, turnDirty: this.turnDirty, armed: this.armed,
+            pendingRollback: this.pendingRollback, effects: this.effects.length, message: this.message,
+        };
+        try {
+            return fn();
+        } finally {
+            this.restore(saved.state);
+            this.history.length = saved.history;
+            this.turnDirty = saved.turnDirty;
+            this.armed = saved.armed;
+            this.pendingRollback = saved.pendingRollback;
+            this.effects.length = saved.effects;
+            this.message = saved.message;
+        }
+    }
+
     // ==================== 查询 ====================
 
     stoneAt(row, col) {
