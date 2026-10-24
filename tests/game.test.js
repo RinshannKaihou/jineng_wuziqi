@@ -154,3 +154,20 @@ test('棋盘下满判和', () => {
     assert.equal(game.state.winner, null);
     assert.equal(game.state.draw, true);
 });
+
+test('trial：试走后对局完全还原（悔棋记录、选中技能、飘字都不变）', () => {
+    const game = setup(api, ['XO'], { current: 'black' });
+    game.selectSkill('e1');
+    const before = { state: game.snapshot(), history: game.history.length, armed: game.armed, dirty: game.turnDirty };
+    const result = game.trial(() => {
+        game.clickCell(5, 5); // 无中生有生效
+        game.clickCell(6, 6); // 落子，回合结束
+        return game.state.current;
+    });
+    assert.equal(result, 'white');
+    assert.equal(game.snapshot(), before.state);
+    assert.equal(game.history.length, before.history);
+    assert.equal(game.armed, before.armed);
+    assert.equal(game.turnDirty, before.dirty);
+    assert.equal(game.takeEffects().length, 0);
+});
