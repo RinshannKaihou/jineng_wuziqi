@@ -1,11 +1,13 @@
 // ==================== 五子棋 AI ====================
-// 只负责"下在哪里"，不使用技能。
+// chooseMove 决定"下在哪里"；chooseSkill 决定回合开头要不要用计策；act 把两者合成一步操作。
 //
 //   1. 棋型查表：把某格在一个方向上前后各 4 格编码成 3^8 的下标，预先算好对应棋型
 //      （五连 / 活四 / 冲四 / 活三 / 眠三 / 活二 / 眠二），跳三、跳四也能识别
 //   2. 必胜/必防：能成五就成五；对方能成五就堵；能走出活四、双四、四三就走
 //   3. VCF 算杀：连续冲四取胜；对方有 VCF 时只考虑能化解它的着法
 //   4. alpha-beta 搜索：迭代加深 + 威胁优先的着法生成，超时返回上一层的结果
+//   5. 计策：在对局上试用每个可用技能（候选目标经过筛选），把回合走完后按威胁分档打分，
+//      比直接落子明显更好才用
 
 const GomokuAI = (() => {
     const N = BOARD_SIZE;
@@ -336,10 +338,13 @@ const GomokuAI = (() => {
         }
     }
 
-    function toBoard(game) {
+    /** ignore(phantom) 为真的幻想子按空位处理 */
+    function toBoard(game, ignore = null) {
         const board = new Int8Array(SIZE);
         for (let r = 0; r < N; r++) {
             for (let c = 0; c < N; c++) {
+                const phantom = ignore && !game.stoneAt(r, c) && game.phantomAt(r, c);
+                if (phantom && ignore(phantom)) continue;
                 const owner = game.lineOwner(r, c);
                 board[r * N + c] = owner === 'black' ? 1 : owner === 'white' ? 2
                     : game.isEmpty(r, c) ? EMPTY : WALL; // 中立棋子：双方都不能借用
@@ -440,5 +445,147 @@ const GomokuAI = (() => {
         return toCell(choice);
     }
 
-    return { chooseMove, Engine, shapeTable, SHAPES: { NONE, ONE, TWO, OPEN_TWO, THREE, OPEN_THREE, FOUR, OPEN_FOUR, FIVE } };
+    // ==================== 计策 ====================
+
+    // 每点能量折合的局面分（只计到本局最贵技能的费用为止）。一手闲棋约值几千分，
+    // 所以以逸待劳只在落子几乎没用时（例如被关门捉贼困在角落）才划算
+    const ENERGY_VALUE = 1000;
+    const SEAL_COST = 1000;   // 自己下回合技能被封印（打草惊蛇）
+    const MIN_GAIN = 200;     // 技能至少要比直接落子好这么多才用
+    const TOP_CELLS = 8;      // 空位候选：棋型分最高的几个
+    const TOP_STONES = 3;     // 棋子候选：最关键、最不关键的各几颗
+    const QUICK = { maxDepth: 0, vcfDepth: 0 }; // 推演里补完回合用的快速着法：只看必胜必防和棋型分
+
+    /**
+     * 回合已结束（轮到对手或已分胜负）时，从 me 的角度给局面打分。
+     * 分档：自己已胜 > 对手堵不住自己的成五（对手还能用技能自救时打折）> 普通局面
+     *       > 对手能走出活四、四三 > 对手下一手成五；同档内比较棋型分和能量。
+     */
+    function outlook(game, me) {
+        const s = game.state;
+        if (s.winner) return s.winner === me ? WIN : -WIN;
+        if (s.draw) return 0;
+        const op = opponentOf(me);
+        // 撑不到自己下回合的幻想子（树上开花、声东击西的虚像）不算自己的威胁
+        const engine = new Engine(toBoard(game, p => p.player === me && (p.soundEast || p.turns === 1)));
+        const cells = engine.scoreAll(op === 'black' ? 1 : 2);
+        const mine = engine.scoreOp, theirs = engine.scoreMe; // 轮到对手，所以 scoreMe 是对手的分
+        const legal = new Set(game.legalMoves(op).map(p => p.row * N + p.col));
+
+        let total = 0;
+        for (const c of cells) total += Math.min(mine[c], DOUBLE3) - Math.min(theirs[c], DOUBLE3);
+        const desired = Math.max(0, ...s.pool.map(id => SKILL_MAP.get(id).cost));
+        const energy = Math.max(0, s.energy[me] - s.energyPenalty[me]);
+        total += ENERGY_VALUE * Math.min(energy, desired) - (s.sealNext[me] ? SEAL_COST : 0);
+
+        const opMoves = cells.filter(c => legal.has(c));
+        // 推移、交换对方棋子可能直接替对方连成五（只在对方行动时才判胜）
+        if (game.hasFive(op) || opMoves.some(c => theirs[c] >= WIN5)) return total - WIN / 2;
+        const fives = cells.filter(c => mine[c] >= WIN5);
+        if (fives.length >= 2 || (fives.length === 1 && !legal.has(fives[0]))) {
+            const canEscape = s.pool.some(id => !game.skillBlockReason(SKILL_MAP.get(id), op));
+            return total + (canEscape ? WIN / 4 : WIN / 2);
+        }
+        const replies = fives.length === 1 ? fives : opMoves; // 自己冲四时对手只能去堵
+        if (replies.some(c => theirs[c] >= WIN4)) return total - WIN / 8;
+        return total;
+    }
+
+    /** 把 me 这一回合剩下的落子走完再打分；preferred（搜索选出的着法）与快速着法取较好者 */
+    function finish(game, me, preferred = null) {
+        if (game.isOver() || game.state.current !== me) return outlook(game, me);
+        const moves = [chooseMove(game, me, QUICK)];
+        if (preferred && !sameCell(preferred, moves[0]) && game.isLegalMove(preferred.row, preferred.col)) moves.push(preferred);
+        return Math.max(...moves.map(move => game.trial(() =>
+            (move && game.clickCell(move.row, move.col) ? finish(game, me) : -WIN))));
+    }
+
+    /** 候选目标筛选：空位取棋型分最高的几个（外加离所有棋子最远的一格），棋子取最关键和最不关键的几颗 */
+    function targetPicker(game, player) {
+        const engine = new Engine(toBoard(game));
+        const interest = new Int32Array(SIZE);
+        for (const { row, col } of game.emptyCells()) {
+            const cell = row * N + col;
+            engine.scoreCell(cell, player === 'black' ? 1 : 2);
+            interest[cell] = engine.scoreMe[cell] + engine.scoreOp[cell];
+        }
+        const far = game.farthestEmptyFrom(game.allCells().filter(p => !game.isEmpty(p.row, p.col)));
+        return cells => {
+            const empty = cells.filter(p => game.isEmpty(p.row, p.col));
+            const stones = cells.filter(p => !game.isEmpty(p.row, p.col));
+            empty.sort((a, b) => interest[b.row * N + b.col] - interest[a.row * N + a.col]);
+            const picked = empty.slice(0, TOP_CELLS);
+            if (far && empty.length > TOP_CELLS && empty.some(p => sameCell(p, far))) picked.push(far);
+            if (stones.length <= TOP_STONES * 2) return picked.concat(stones);
+            const weight = p => game.connections(p.row, p.col);
+            stones.sort((a, b) => weight(b) - weight(a));
+            return picked.concat(stones.slice(0, TOP_STONES), stones.slice(-TOP_STONES));
+        };
+    }
+
+    /**
+     * 回合开头决定是否用技能：在对局上逐个试用可用技能（含二段选择），走完回合后打分，
+     * 比直接下 move 明显更好才用。
+     * @returns {{skill:string, targets:{row:number,col:number}[]}|null} targets 按顺序点选
+     */
+    function chooseSkill(game, player, { move = null, timeLimit = 400 } = {}) {
+        if (game.isOver() || game.state.current !== player || game.turnDirty || game.state.pending || game.armed) return null;
+        const skills = game.state.pool.map(id => SKILL_MAP.get(id)).filter(skill => !game.skillBlockReason(skill, player));
+        if (skills.length === 0) return null;
+        move = move || chooseMove(game, player);
+        const deadline = Date.now() + timeLimit;
+        let bestValue = game.trial(() => finish(game, player, move)) + MIN_GAIN;
+        if (bestValue > WIN) return null; // 直接落子就赢
+        let best = null;
+        const pick = targetPicker(game, player);
+
+        // 已用出技能：二段选择就展开候选目标，否则走完回合打分
+        const search = (skill, targets) => {
+            if (Date.now() > deadline) return;
+            if (game.state.pending) {
+                for (const t of pick(game.pendingTargets())) {
+                    game.trial(() => game.clickCell(t.row, t.col) && search(skill, [...targets, t]));
+                }
+                return;
+            }
+            const value = finish(game, player, move);
+            if (value > bestValue) {
+                bestValue = value;
+                best = { skill: skill.id, targets };
+            }
+        };
+        // 无目标的先算，二段选择的最后算：超时时先保证推演量小的技能
+        const order = skill => (skill.target === Target.NONE ? 0 : skill.pendingTargets ? 2 : 1);
+        for (const skill of skills.sort((a, b) => order(a) - order(b))) {
+            const firsts = skill.target === Target.NONE ? [null] : pick(game.targetCells(skill.target, player));
+            for (const t of firsts) {
+                game.trial(() => game.selectSkill(skill.id) && (!t || game.clickCell(t.row, t.col)) && search(skill, t ? [t] : []));
+            }
+        }
+        return best;
+    }
+
+    /**
+     * AI 走一步：用一次技能（含全部点选）或落一子。轮到 AI 时反复调用，直到回合结束。
+     * 只在回合开头考虑技能，所以每回合最多用一次；技能执行失败就撤销并照常落子，不会卡住回合。
+     * @returns {{skill:string, targets:object[]}|{move:{row:number,col:number}}|null}
+     */
+    function act(game, player, { timeLimit = 800 } = {}) {
+        if (game.isOver() || game.state.current !== player) return null;
+        if (game.state.pending || game.armed) game.cancel(); // 正常不会出现，防止点选被误当成技能目标
+        const move = chooseMove(game, player, { timeLimit });
+        const plan = chooseSkill(game, player, { move, timeLimit: timeLimit / 2 });
+        if (plan) {
+            if (game.selectSkill(plan.skill) && plan.targets.every(t => game.clickCell(t.row, t.col)) && !game.state.pending) {
+                return plan;
+            }
+            game.cancel();
+        }
+        for (const p of [move, ...game.legalMoves(player)]) {
+            if (p && game.clickCell(p.row, p.col)) return { move: p };
+        }
+        return null;
+    }
+
+    return { chooseMove, chooseSkill, act, Engine, shapeTable, SHAPES: { NONE, ONE, TWO, OPEN_TWO, THREE, OPEN_THREE, FOUR, OPEN_FOUR, FIVE } };
 })();

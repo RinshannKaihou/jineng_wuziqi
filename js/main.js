@@ -1,12 +1,12 @@
 // ==================== 启动与控制器 ====================
-// 连接游戏核心、界面和 AI：处理按钮、键盘，并在轮到 AI 时调度它落子。
+// 连接游戏核心、界面和 AI：处理按钮、键盘，并在轮到 AI 时调度它行动。
 
 (() => {
     const AI_DELAY = 250;       // 让"思考中"先显示出来
-    const AI_TIME_LIMIT = 800;  // AI 单步搜索时间上限（毫秒）
+    const AI_TIME_LIMIT = 800;  // AI 单步落子搜索时间上限（毫秒），推演技能另用一半
 
     const game = new GomokuGame();
-    const ai = { enabled: false, player: 'white', timer: null };
+    const ai = { enabled: false, player: 'white', timer: null, note: '' };
 
     const isAITurn = () => ai.enabled && !game.isOver() && game.state.current === ai.player;
 
@@ -43,8 +43,14 @@
         ai.timer = setTimeout(() => {
             ai.timer = null;
             if (!isAITurn()) return;
-            const move = GomokuAI.chooseMove(game, ai.player, { timeLimit: AI_TIME_LIMIT });
-            if (move) game.clickCell(move.row, move.col);
+            // 每次走一步（用技能或落子）；refresh 后若仍轮到 AI 会再排下一步，直到回合结束
+            const action = GomokuAI.act(game, ai.player, { timeLimit: AI_TIME_LIMIT });
+            if (action && action.skill) {
+                const skill = SKILL_MAP.get(action.skill);
+                ai.note = `🤖 AI 使用了 ${skill.icon} ${skill.name}`;
+            }
+            if (ai.note) game.message = ai.note; // 落子会清空提示，回合结束前一直显示用过的技能
+            if (!isAITurn()) ai.note = '';
             refresh();
         }, AI_DELAY);
     }
@@ -52,6 +58,7 @@
     function stopAI() {
         clearTimeout(ai.timer);
         ai.timer = null;
+        ai.note = '';
     }
 
     const actions = {
